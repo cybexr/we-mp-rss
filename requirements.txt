@@ -11,3 +11,6 @@ schedule==1.2.2
 SQLAlchemy==2.0.40
 typing_extensions==4.13.2
 urllib3==2.2.3
+pyjwt[crypto]==2.8.0
+passlib==1.7.4
+python-multipart==0.0.7

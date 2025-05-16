@@ -1,10 +1,10 @@
 import requests
-import yaml
 import json
 import re
 import datetime
-import libs.db as db
 from datetime import datetime, timezone
+import core.config as cfg
+import core.db as db
 
 def dateformat(timestamp:int):
     # UTC时间对象
@@ -16,28 +16,26 @@ def dateformat(timestamp:int):
     t=(local_dt.strftime("%Y-%m-%d %H:%M:%S"))
     return t
 
-with open("config.yaml", "r") as f:
-     config = yaml.safe_load(f)
 def get_Articles(faker_id:str):
     headers = {
-        "Cookie": config["cookie"],
-        "User-Agent": config["user_agent"]
+        "Cookie": cfg.get("cookie"),
+        "User-Agent": cfg.get("user_agent")
     }
     params = {
         "sub": "list",
         "sub_action": "list_ex",
         "begin": 0,
-        "count": config["count"],
+        "count": cfg.get("count"),
         "fakeid": faker_id,
-        "token": config["token"],
+        "token": cfg.get("token"),
         "lang": "zh_CN",
         "f": "json",
         "ajax": 1
     }
     url = "https://mp.weixin.qq.com/cgi-bin/appmsgpublish"
     headers = {
-        "Cookie": config["cookie"],
-        "User-Agent": config["user_agent"]
+        "Cookie": cfg.get("cookie"),
+        "User-Agent": cfg.get("user_agent")
     }
     data={}
     try:
@@ -64,7 +62,7 @@ def get_list(faker_id:str=None,mp_id:str=None,is_add:bool=False):
     try:
         data=data['publish_page']['publish_list']
         wx_db=db.Db()
-        wx_db.init(config['db'])
+        wx_db.init(cfg.get('db'))
         for i in data:
             art=i['publish_info']
             art=json.loads(art)
@@ -84,8 +82,8 @@ def get_list(faker_id:str=None,mp_id:str=None,is_add:bool=False):
             }
             articles.append(article)
             if is_add:
-                wx_db.add_article(article)
-                print('添加成功')
+                isOk=wx_db.add_article(article)
+                print(f'添加成功{isOk}')
     except Exception as e:
         print(e,"出错了")
    

@@ -1,33 +1,8 @@
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
+
 from sqlalchemy.orm import sessionmaker
 from typing import Optional, List
-
-Base = declarative_base()
-
-class Article(Base):
-    __tablename__ = 'articles'
-    id = Column(String(255), primary_key=True)
-    mp_id = Column(String(255))
-    title = Column(String(500))
-    pic_url = Column(String(500))
-    publish_time = Column(Integer)
-    created_at = Column(DateTime)
-    updated_at = Column(DateTime)  # Changed from Integer to DateTime for consistency
-    is_export = Column(Integer)
-
-class Feeds(Base):
-    __tablename__ = 'feeds'
-    id = Column(String(255), primary_key=True)
-    mp_name = Column(String(255))
-    mp_cover = Column(String(255))
-    mp_intro = Column(String(255))
-    status = Column(Integer)
-    sync_time = Column(DateTime)
-    update_time = Column(DateTime)
-    created_at = Column(DateTime) 
-    updated_at = Column(DateTime)
-    faker_id = Column(String(255))
+from .models import Feed,Article
 
 class Db:
     def __init__(self):
@@ -60,7 +35,7 @@ class Db:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
             
-    def add_article(self, article_data: dict) -> None:
+    def add_article(self, article_data: dict) -> bool:
         try:
             art = Article(**article_data)
             self.session.add(art) 
@@ -68,33 +43,43 @@ class Db:
         except Exception as e:
             self.session.rollback()
             print(f"Failed to add article: {e}")
-            return e
-            
+            return False
+        return True    
     def get_articles(self,id:str=None,limit:int=30,offset:int=0) -> List[Article]:
          try:
-            #  data=self.session.query(Feeds).filter_by(id=id).limit(10)
+            #  data=self.session.query(Feed).filter_by(id=id).limit(10)
              data=self.session.query(Article).limit(limit).offset(offset)
              return data
          except Exception as e:
-             print(f"Failed to fetch feeds: {e}")
+             print(f"Failed to fetch Feed: {e}")
              return e    
              
-    def get_all_mps(self) -> List[Feeds]:
-         """Get all Feeds records"""
+    def get_all_mps(self) -> List[Feed]:
+         """Get all Feed records"""
          try:
-             return self.session.query(Feeds).all()
+             return self.session.query(Feed).all()
          except Exception as e:
-             print(f"Failed to fetch feeds: {e}")
+             print(f"Failed to fetch Feed: {e}")
              return e
-    def get_mps(self,mp_id:str)->Optional[Feeds]:
+    def get_mps(self,mp_id:str)->Optional[Feed]:
          try:
-             data=self.session.query(Feeds).filter_by(id=mp_id).first()
+             data=self.session.query(Feed).filter_by(id=mp_id).first()
             #  return type(data)
              return  data
          except Exception as e:
-             print(f"Failed to fetch feeds: {e}")
+             print(f"Failed to fetch Feed: {e}")
              return e
 
     def get_faker_id(self,mp_id:str):
         data= self.get_mps(mp_id)
         return data.faker_id
+        
+    def get_session(self):
+        """获取数据库会话"""
+        if not self.session:
+            raise Exception("Database not initialized")
+        return self.session
+
+DB=Db()
+from .config import config as cfg
+DB.init(cfg.get("db"))
