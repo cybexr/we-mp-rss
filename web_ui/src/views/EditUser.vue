@@ -169,7 +169,7 @@ const fetchUserInfo = async () => {
         ? (res.avatar.startsWith('http') 
             ? res.avatar 
             : `${import.meta.env.VITE_API_BASE_URL}${res.avatar}`)
-        : `${import.meta.env.VITE_API_BASE_URL}/static/default-avatar.png`
+        : `${import.meta.env.VITE_API_BASE_URL}/assets/avatar.svg`
     }
     console.log('表单数据:', form.value)
     console.log('表单数据:', form.value) // 调试日志

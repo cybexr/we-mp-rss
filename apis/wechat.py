@@ -172,11 +172,14 @@ async def add_mp(
     session = DB.get_session()
     try:
         from core.models.feed import Feed
+        import time
         now = datetime.now()
         
+        import base64
+        mpx_id = base64.b64decode(mp_id).decode("utf-8")
         # 创建新的Feed记录
         new_feed = Feed(
-            id=f"mp_{now.timestamp()}",
+            id=f"MP_WXS_{mpx_id}",
             mp_name=mp_name,
             mp_cover=avatar,
             mp_intro=mp_intro,
@@ -184,8 +187,8 @@ async def add_mp(
             created_at=now,
             updated_at=now,
             faker_id=mp_id,
-            update_time=now.timestamp(),
-            sync_time=now.timestamp(),
+            update_time=0,
+            sync_time=0,
         )
         
         session.add(new_feed)

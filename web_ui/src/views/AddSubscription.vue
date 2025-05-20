@@ -22,9 +22,8 @@
               allow-clear
               allow-search
               @search="handleSearch"
-              @change="handleSelect"
             >
-            <a-option v-for="item of searchResults" :value="item" :label="item.nickname" />
+            <a-option v-for="item of searchResults" :value="item" :label="item.nickname" @click="handleSelect(item)" />
           </a-select>
           </a-space>
         </a-form-item>
@@ -115,6 +114,7 @@ const handleSearch = async (value: string) => {
 }
 
 const handleSelect = (item: any) => {
+  console.log(item)
   form.value.name = item.nickname
   form.value.wx_id = item.fakeid // 修正拼写错误：fackid → fakeid
   form.value.description = item.signature

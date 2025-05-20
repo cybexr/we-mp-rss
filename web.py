@@ -44,7 +44,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def serve_vue_app(request: Request, path: str):
     """处理Vue应用路由"""
     # 排除API和静态文件路由
-    if path.startswith(('api', 'assets', 'static')) or path in ['favicon.ico']:
+    if path.startswith(('api', 'assets', 'static')) or path in ['favicon.ico','vite.svg','logo.svg']:
         return None
     
     # 返回Vue入口文件
