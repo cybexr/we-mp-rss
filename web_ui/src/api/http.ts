@@ -34,8 +34,8 @@ http.interceptors.response.use(
       return response.data.data||response.data.detail
     }
     const data=response.data?.detail||response.data
-    // const errorMsg = data?.message || '请求失败'
-    // Message.error(errorMsg)
+    const errorMsg = data?.message || '请求失败'
+    Message.error(errorMsg)
     return Promise.reject(response.data)
   },
   error => {
@@ -48,7 +48,7 @@ http.interceptors.response.use(
                     error.response?.data?.detail || 
                     error.message || 
                     '请求错误'
-    // Message.error(errorMsg)
+    Message.error(errorMsg)
     return Promise.reject(errorMsg)
   }
 )

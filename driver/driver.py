@@ -94,18 +94,36 @@ class FirefoxController:
         """验证现有驱动是否可用"""
         if not os.path.exists(path):
             return False
-        if self.system == "linux":
+            
+        # Windows系统验证
+        if self.system == "windows":
+            # 确保路径以.exe结尾且可读
+            if not path.lower().endswith('.exe'):
+                # 尝试添加.exe后缀
+                new_path = path + '.exe'
+                if os.path.exists(new_path):
+                    return True
+                return False
+            if not os.access(path, os.R_OK):
+                return False
+                
+        # Linux/Mac系统验证
+        if self.system in ("linux", "darwin"):
             if not os.access(path, os.X_OK):
                 try:
                     os.chmod(path, 0o755)
                 except:
                     return False
+                    
         return True
-
+    def get_driver_path(self):
+        """根据操作系统返回正确的driver路径"""
+        driver_name = "geckodriver.exe" if self.system == "windows" else "geckodriver"
+        return os.path.join(os.path.dirname(__file__), "driver", driver_name)
     def _setup_driver(self):
         """自动配置geckodriver"""
         # 优先检查本地驱动
-        local_driver = os.path.join(os.path.dirname(__file__), "driver", "geckodriver")
+        local_driver = self.get_driver_path()
         if self._validate_existing_driver(local_driver):
             self.driver_path = local_driver
             print("使用本地驱动:", local_driver)
@@ -113,19 +131,66 @@ class FirefoxController:
             
         # 本地驱动不可用则尝试自动下载
         try:
-            # 使用国内镜像源配置
+            # 使用阿里云镜像源配置
             os.environ['WDM_SSL_VERIFY'] = '0'
             os.environ['WDM_LOCAL'] = '1'
             
-            # 尝试使用清华镜像源
+            # 尝试从华为云镜像直接下载
             try:
-                self.driver_path = GeckoDriverManager(
-                    url="https://mirrors.tuna.tsinghua.edu.cn/github-release/mozilla/geckodriver/",
-                    latest_release_url="https://mirrors.tuna.tsinghua.edu.cn/github-release/mozilla/geckodriver/LatestRelease/",
-                    cache_valid_range=365
-                ).install()
+                import requests
+                import re
+                import tarfile
+                import zipfile
+                
+                # 获取最新版本
+                response = requests.get("https://repo.huaweicloud.com/geckodriver/")
+                response.raise_for_status()
+                
+                # 解析最新版本号
+                versions = re.findall(r'href="v(\d+\.\d+\.\d+)/"', response.text)
+                if not versions:
+                    raise Exception("无法从华为云镜像获取geckodriver版本")
+                latest_version = sorted(versions, key=lambda v: [int(n) for n in v.split('.')])[-1]
+                
+                # 确定平台和文件后缀
+                if self.system == "windows":
+                    platform_name = "win64"
+                    ext = "zip"
+                elif self.system == "linux":
+                    platform_name = "linux64"
+                    ext = "tar.gz"
+                elif self.system == "darwin":
+                    platform_name = "macos" if platform.machine() == "arm64" else "macos"
+                    ext = "tar.gz"
+                else:
+                    raise Exception(f"不支持的系统: {self.system}")
+                
+                # 构建下载URL
+                download_url = f"https://repo.huaweicloud.com/geckodriver/v{latest_version}/geckodriver-v{latest_version}-{platform_name}.{ext}"
+                
+                # 下载文件
+                driver_dir = os.path.join(os.path.dirname(__file__), "driver")
+                os.makedirs(driver_dir, exist_ok=True)
+                archive_path = os.path.join(driver_dir, f"geckodriver.{ext}")
+                self._download_file(download_url, archive_path)
+                
+                # 解压文件
+                if self.system == "windows":
+                    extract_path = os.path.join(driver_dir, "geckodriver.exe")
+                    with zipfile.ZipFile(archive_path) as zip_ref:
+                        zip_ref.extract("geckodriver.exe", path=driver_dir)
+                else:
+                    extract_path = os.path.join(driver_dir, "geckodriver")
+                    with tarfile.open(archive_path, "r:gz") as tar:
+                        tar.extract("geckodriver", path=driver_dir)
+                    os.chmod(extract_path, 0o755)
+                
+                # 清理临时文件
+                os.remove(archive_path)
+                self.driver_path = extract_path
+                
             except Exception as mirror_error:
-                print("镜像源下载失败，尝试官方源...")
+                print("华为云镜像直接下载失败，尝试webdriver_manager...", mirror_error)
                 try:
                     self.driver_path = GeckoDriverManager().install()
                 except Exception as official_error:
@@ -186,5 +251,3 @@ class FirefoxController:
 #     try:
 #         controller.start_browser()
 #         controller.open_url("https://mp.weixin.qq.com/")
-#     finally:
-#         controller.close()
