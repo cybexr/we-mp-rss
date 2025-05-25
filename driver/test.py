@@ -1,5 +1,5 @@
 import asyncio
-from wx import WX_API
+import wx
 from threading import Thread
 def Success(data):
     if data != None:
@@ -9,9 +9,9 @@ def Success(data):
     else:
             print("\n登录失败，请检查上述错误信息")
 def task():
-    code_url=WX_API.GetCode(Success)
+    code_url=wx.WX_API.GetCode(Success)
     print(f"code url:{code_url}")
-    WX_API.QRcode()
+    wx.WX_API.QRcode()
 
 if __name__ == "__main__":
     task()

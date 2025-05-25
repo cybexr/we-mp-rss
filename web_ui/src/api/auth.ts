@@ -1,5 +1,5 @@
 import http from './http'
-
+import axios from 'axios'
 export interface LoginParams {
   username: string
   password: string
@@ -29,6 +29,24 @@ export interface VerifyResult {
 
 export const verifyToken = () => {
   return http.get<VerifyResult>('/wx/auth/verify')
+}
+export const QRCode = () => {
+  return new Promise((resolve, reject) => {
+    http.get('/wx/auth/qr/code').then(res => {
+      const intervalId = setInterval(() => {
+        axios.head(res?.code).then(response => {
+          if(response.status==200){
+            console.log(response)
+            clearInterval(intervalId)
+            resolve(res)
+          }
+        }).catch(err => {
+          // clearInterval(intervalId)
+          // reject(err)
+        })
+      }, 1000)
+    }).catch(reject)
+  })
 }
 
 export const refreshToken = () => {

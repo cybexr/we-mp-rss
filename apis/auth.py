@@ -8,11 +8,30 @@ from core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES
 )
 from .ver import API_VERSION
+from .base import success_response, error_response
+from driver.wx import WX_API
+from core.wx import set_config
 router = APIRouter(prefix=f"/auth", tags=["认证"])
 
+
+def Success(data):
+    if data != None:
+            print("\n登录结果:")
+            print(f"Cookies数量: {len(data['cookies'])}")
+            print(f"Token: {data['token']}")
+            set_config("cookie",(data['cookies_str']))
+            set_config("token",data['token'])
+    else:
+            print("\n登录失败，请检查上述错误信息")
+@router.get("/qr/code", summary="获取登录二维码")
+async def get_qrcode():
+    code_url=WX_API.GetCode(Success)
+    return success_response(code_url)
+@router.get("/qr/image", summary="获取登录二维码图片")
+async def qr_image():
+    return success_response(WX_API.GetHasCode())
 @router.post("/login", summary="用户登录")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    from .base import success_response, error_response
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -38,7 +57,6 @@ async def logout(current_user: dict = Depends(get_current_user)):
 
 @router.post("/refresh", summary="刷新Token")
 async def refresh_token(current_user: dict = Depends(get_current_user)):
-    from .base import success_response
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": current_user["username"]}, expires_delta=access_token_expires
@@ -52,7 +70,6 @@ async def refresh_token(current_user: dict = Depends(get_current_user)):
 @router.get("/verify", summary="验证Token有效性")
 async def verify_token(current_user: dict = Depends(get_current_user)):
     """验证当前token是否有效"""
-    from .base import success_response
     return success_response({
         "is_valid": True,
         "username": current_user["username"],

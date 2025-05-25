@@ -1,6 +1,10 @@
 import yaml
 import sys
 config = {}
+def save_config():
+    global config
+    with open('config.yaml', 'w', encoding='utf-8') as f:
+        yaml.dump(config, f)
 def get_config():
     global config
     try:
@@ -11,6 +15,10 @@ def get_config():
         print(f"Error loading configuration file{e}")
         sys.exit(1)
     return []
+def set(key,default:any=None):
+    global config
+    config[key] = default
+    save_config()
 def get(key,default:any=None):
     global config
     if key in config:

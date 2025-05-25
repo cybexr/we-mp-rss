@@ -15,7 +15,10 @@ def dateformat(timestamp:int):
     local_dt = utc_dt.astimezone()
     t=(local_dt.strftime("%Y-%m-%d %H:%M:%S"))
     return t
-
+def set_config(key:str,value:str):
+    cfg.set(key,value)
+def save_config():
+    cfg.save_config()
 #通过公众号码平台接口查询公众号
 def search_Biz(kw:str="",limit=5,offset=0):
     url = "https://mp.weixin.qq.com/cgi-bin/searchbiz"

@@ -39,7 +39,6 @@ app.include_router(api_router)
 # 静态文件服务配置
 app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
 @app.get("/{path:path}")
 async def serve_vue_app(request: Request, path: str):
     """处理Vue应用路由"""

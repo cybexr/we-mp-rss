@@ -1,5 +1,5 @@
 import sys
-from driver import FirefoxController
+from .firefox_driver import FirefoxController
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -11,7 +11,8 @@ import re
 import json
 class Wx:
     SESSION=None
-    wx_login_url="wx_qrcode.png"
+    HasCode=False
+    wx_login_url="static/wx_qrcode.png"
     def check_dependencies(self):
         """检查必要的依赖包"""
         try:
@@ -22,7 +23,10 @@ class Wx:
             print("pip install selenium Pillow")
             return False
         return True
-
+    def GetHasCode(self):
+        if os.path.exists(self.wx_login_url):
+            return True
+        return False
     def extract_token_from_requests(self,driver):
         """从页面中提取token"""
         try:
@@ -59,12 +63,11 @@ class Wx:
         thread.start()  # 启动线程
         print("微信公众平台登录脚本 v1.3")
         return WX_API.QRcode()
-    domain="/res/"    
     wait_time=10
     def QRcode(self):
-        while  not os.path.exists(self.wx_login_url):
-            return None
-        return f"{self.domain}{self.wx_login_url}"
+        return {
+            "code":self.wx_login_url
+        }
     def wxLogin(self,Callback=None):
         """
         微信公众平台登录流程：
@@ -78,6 +81,10 @@ class Wx:
         if not self.check_dependencies():
             return None
         try:
+            if  self.isLOCK:
+                raise Exception("微信公众平台登录脚本正在运行，请勿重复运行！")
+                return None
+            self.isLOCK=True
             self.clean()
             # 初始化浏览器控制器
             controller = FirefoxController()
@@ -130,14 +137,17 @@ class Wx:
             # 获取cookie
             cookies = controller.driver.get_cookies()
             print("\n获取到的Cookie:")
+            cookies_str=""
             for cookie in cookies:
                 print(f"{cookie['name']}={cookie['value']}")
+                cookies_str+=f"{cookie['name']}={cookie['value']}; "
                 
             if token:
                 print(f"\n获取到的Token: {token}")
             
             self.SESSION= {
                 'cookies': cookies,
+                'cookies_str': cookies_str,
                 'token': token,
                 'wx_login_url': self.wx_login_url,
             }
@@ -152,6 +162,7 @@ class Wx:
             self.SESSION=None
         finally:
             self.clean()
+            self.isLOCK=False
             if 'controller' in locals():
                 controller.close()
         return self.SESSION
@@ -160,5 +171,6 @@ class Wx:
             os.remove(self.wx_login_url)
         except:
             pass
-
+        finally:
+           pass
 WX_API=Wx()
