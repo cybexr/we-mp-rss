@@ -83,6 +83,15 @@ API服务启动后，访问以下地址查看文档：
 - Swagger UI: http://localhost:8001/docs
 - Redoc: http://localhost:8001/redoc
 
+
+# Docker构建及运行
+```
+# 构建
+docker build -t we-mp-rss .
+# Docker运行
+docker run -d --name we-mp-rss -p 8001:8001 we-mp-rss
+```
+
 ## 开发指南
 
 ### 后端开发
@@ -110,14 +119,7 @@ npm run dev
 npm run build
 ```
 
-# Docker构建
-```
-docker build -t we-mp-rss .
-```
-# Docker运行
-```
-docker run -d --name we-mp-rss -p 8001:8001 we-mp-rss
-```
+
 
 
 ## 贡献指南
