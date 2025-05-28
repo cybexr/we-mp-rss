@@ -4,4 +4,4 @@ __pycache__
 config.yaml
 *.pyc
 static/cache/
-static/avatar/
+static/avatars/
