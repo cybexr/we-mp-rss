@@ -1,1 +1,1 @@
-uvicorn web:app --host 0.0.0.0 --port 8001 --reload
+python3 main.py -job true -init true

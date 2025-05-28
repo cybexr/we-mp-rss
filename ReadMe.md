@@ -94,8 +94,7 @@ python job.py
 ## API文档
 
 API服务启动后，访问以下地址查看文档：
-- Swagger UI: http://localhost:8001/docs
-- Redoc: http://localhost:8001/redoc
+- Swagger UI: http://localhost:8001/api/docs
 
 ## 快速运行
 ### Docker Sqlite

@@ -61,7 +61,7 @@ def do_job():
     else:
         print(text)    
 def start():
-    schedule.every(cfg.get("interval",5*60)).seconds.do(do_job)  # 默认5分钟执行一次
+    schedule.every(int(cfg.get("interval",5*60))).seconds.do(do_job)  # 默认5分钟执行一次
     # schedule.every.day.at("08:00").do(job)  # 每天8点执行
     while True:
         schedule.run_pending()
