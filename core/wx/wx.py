@@ -53,6 +53,37 @@ def search_Biz(kw:str="",limit=5,offset=0):
         print(f"请求失败: {e}")
     return data
 
+from bs4 import BeautifulSoup
+# 提取一篇文章的内容
+def content_extract(url):
+    headers = {
+        "Cookie": cfg.get("cookie"),
+        "User-Agent": cfg.get("user_agent")
+    }
+    r = requests.get(eval(url),headers=headers)
+    if r.status_code == 200:
+        text = r.text
+        soup = BeautifulSoup(text, 'html.parser')
+        # 找到内容
+        js_content_div = soup.find('div', {'id': 'js_content'})
+        # 移除style属性中的visibility: hidden;
+        js_content_div.attrs.pop('style', None)
+        # 找到所有的img标签
+        img_tags = js_content_div.find_all('img')
+        # 遍历每个img标签并修改属性，设置宽度为1080p
+        for img_tag in img_tags:
+            if 'data-src' in img_tag.attrs:
+                img_tag['src'] = img_tag['data-src']
+                del img_tag['data-src']
+            if 'style' in img_tag.attrs:
+                style = img_tag['style']
+                # 使用正则表达式替换width属性
+                style = re.sub(r'width\s*:\s*\d+\s*px', 'width: 1080px', style)
+                img_tag['style'] = style
+        return js_content_div.prettify()
+    else:
+        print("download error,status_code: ",r.status_code,"\n")
+    return ""
 #通过公众号接口获取公众号文章列表
 def get_Articles(faker_id:str):
     headers = {
@@ -82,6 +113,7 @@ def get_Articles(faker_id:str):
         data = response.text  # 解析JSON数据
         data = json.loads(data)  # 手动解析
         data['publish_page']=json.loads(data['publish_page'])
+        data['publish_info']=json.loads(data['publish_info'])
     except Exception as e:
         print(f"请求失败: {e}",data)
     return data
@@ -126,6 +158,7 @@ def get_list(faker_id:str=None,mp_id:str=None,is_add:bool=False):
             'publish_time':art['update_time'],
             'created_at':dateformat(art['create_time']),
             'updated_at':dateformat(art['update_time']),
+            'content': content_extract(art['link']),
             'is_export':0,
             }
             articles.append(article)
@@ -138,7 +171,7 @@ def get_list(faker_id:str=None,mp_id:str=None,is_add:bool=False):
    
     return articles
 
-from .models import Feed
+from core.models import Feed
 # 更新公众号更新状态
 from core.db import DB
 from core.models.feed import Feed
