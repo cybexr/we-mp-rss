@@ -29,6 +29,7 @@ docker image prune -f
 docker image ls
 REM 运行容器 (使用本地架构)
 docker run -d --name we-mp-rss  -p 8002:8001 -v %~dp0:/work %name%
+docker run -d --name we-mp-rss-arm --platform linux/arm64 -p 8003:8001 -v %~dp0:/work %name%
 @REM docker exec -it we-mp-rss /bin/bash
 @REM docker stop we-mp-rss
 
