@@ -6,34 +6,83 @@ import sys
 import json
 import random
 import uuid
-
-
-try:
-    from playwright.sync_api import sync_playwright
-except ImportError:
-    print("检测到playwright未安装，正在自动安装...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright"])
-    print("playwright安装完成，正在安装浏览器...")
-    
-    # 检查是否设置了自定义浏览器安装路径
-    browsers_path = os.getenv("PLAYWRIGHT_BROWSERS_PATH","./data/driver/")
-    if browsers_path:
-        print(f"使用自定义浏览器安装路径: {browsers_path}")
-        subprocess.check_call([sys.executable, "-m", "playwright", "install", "--with-deps"], env={**os.environ, "PLAYWRIGHT_BROWSERS_PATH": browsers_path})
-    else:
-        subprocess.check_call([sys.executable, "-m", "playwright", "install", "--with-deps"])
-    
-    from playwright.sync_api import sync_playwright
-
+#指定浏览器类型
+browsers_name=os.getenv("BROWSER_TYPE","webkit")
 class PlaywrightController:
     def __init__(self):
+        
         self.system = platform.system().lower()
         self.driver = None
         self.browser = None
         self.context = None
         self.page = None
         self.isClose = True
-       
+    def install(self,browser_name=browsers_name):
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            print("检测到playwright未安装，正在自动安装...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright"])
+            print("playwright安装完成，正在安装浏览器...")
+            
+            # 检查是否设置了自定义浏览器安装路径
+            browsers_path = os.getenv("PLAYWRIGHT_BROWSERS_PATH","./data/driver/")
+            if browsers_path:
+                print(f"使用自定义浏览器安装路径: {browsers_path}")
+                subprocess.check_call([sys.executable, "-m", "playwright", "install",f"{browser_name}", "--with-deps"], env={**os.environ, "PLAYWRIGHT_BROWSERS_PATH": browsers_path})
+            else:
+                subprocess.check_call([sys.executable, "-m", "playwright", "install",f"{browser_name}", "--with-deps"])
+            
+            from playwright.sync_api import sync_playwright
+        return sync_playwright()
+    
+    def start_browser(self, headless=True, mobile_mode=False, dis_image=False, browser_name=browsers_name, language="zh-CN", anti_crawler=True):
+        try:
+            if  bool(os.getenv("NOT_HEADLESS",False)):
+                headless = False
+            if self.driver is None:
+                self.driver = self.install().start()
+            
+            # 根据浏览器名称选择浏览器类型
+            if browser_name.lower() == "firefox":
+                browser_type = self.driver.firefox
+            elif browser_name.lower() == "webkit":
+                browser_type = self.driver.webkit
+            else:
+                browser_type = self.driver.chromium  # 默认使用chromium
+            self.browser = browser_type.launch(headless=headless)
+            
+            # 设置浏览器语言为中文
+            context_options = {
+                "locale": language
+            }
+            
+            # 反爬虫配置
+            if anti_crawler:
+                context_options.update(self._get_anti_crawler_config(mobile_mode))
+            
+            self.context = self.browser.new_context(**context_options)
+            self.page = self.context.new_page()
+            
+
+            if mobile_mode:
+                self.page.set_viewport_size({"width": 375, "height": 812})
+            # else:
+            #     self.page.set_viewport_size({"width": 1920, "height": 1080})
+
+            if not dis_image:
+                self.context.route("**/*.{png,jpg,jpeg}", lambda route: route.abort())
+
+            # 应用反爬虫脚本
+            if anti_crawler:
+                self._apply_anti_crawler_scripts()
+
+            self.isClose = False
+            return self.page
+        except Exception as e:
+            print(f"浏览器启动失败: {str(e)}")
+            self.cleanup()
+            raise
     def string_to_json(self, json_string):
         try:
             json_obj = json.loads(json_string)
@@ -201,54 +250,7 @@ class PlaywrightController:
 
        
 
-    import os
-    def start_browser(self, headless=True, mobile_mode=False, dis_image=False, browser_name="firefox", language="zh-CN", anti_crawler=True):
-        try:
-            if  bool(os.getenv("NOT_HEADLESS",False)):
-                headless = False
-            if self.driver is None:
-                self.driver = sync_playwright().start()
-           
-            # 根据浏览器名称选择浏览器类型
-            if browser_name.lower() == "firefox":
-                browser_type = self.driver.firefox
-            elif browser_name.lower() == "webkit":
-                browser_type = self.driver.webkit
-            else:
-                browser_type = self.driver.chromium  # 默认使用chromium
-            self.browser = browser_type.launch(headless=headless)
-            
-            # 设置浏览器语言为中文
-            context_options = {
-                "locale": language
-            }
-            
-            # 反爬虫配置
-            if anti_crawler:
-                context_options.update(self._get_anti_crawler_config(mobile_mode))
-            
-            self.context = self.browser.new_context(**context_options)
-            self.page = self.context.new_page()
-           
-
-            if mobile_mode:
-                self.page.set_viewport_size({"width": 375, "height": 812})
-            # else:
-            #     self.page.set_viewport_size({"width": 1920, "height": 1080})
-
-            if not dis_image:
-                self.context.route("**/*.{png,jpg,jpeg}", lambda route: route.abort())
-
-            # 应用反爬虫脚本
-            if anti_crawler:
-                self._apply_anti_crawler_scripts()
-
-            self.isClose = False
-            return self.page
-        except Exception as e:
-            print(f"浏览器启动失败: {str(e)}")
-            self.cleanup()
-            raise
+   
 
     def __del__(self):
         # 避免在程序退出时调用Close()，防止"can't register atexit after shutdown"错误

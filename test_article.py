@@ -144,8 +144,8 @@ if __name__=="__main__":
     # testLogin()
 
     # test_screenshot()
-    # test_Gather_Article()
-    testWx_Api()
+    test_Gather_Article()
+    # testWx_Api()
     # test_fetch_articles_without_content()
     # testWeb()
     # testNotice()

@@ -10,8 +10,8 @@ docker stop we-mp-rss
 docker stop we-mp-rss-arm
 docker rm we-mp-rss
 docker rm we-mp-rss-arm
-docker run -d --name we-mp-rss --platform linux/amd64 -p 8002:8001 -v %~dp0:/work %name%
-docker run -d --name we-mp-rss-arm --platform linux/arm64 -p 8003:8001 -v %~dp0:/work %name%
+docker run -d --name we-mp-rss --platform linux/amd64 -p 8002:8001 -v %~dp0:/work -v  %~dp0/data:/data %name%
+docker run -d --name we-mp-rss-arm --platform linux/arm64 -p 8003:8001 -v %~dp0:/work -v  %~dp0/data:/data %name%
 docker exec -it we-mp-rss /bin/bash
 docker stop we-mp-rss
 goto :eof
@@ -42,6 +42,6 @@ docker image ls
 
 if "%1"=="-p" (
     echo 推送多架构镜像到仓库...
-    docker buildx build --platform %platform% -t ghcr.io/rachelos/%name% --push --insecure .
+    docker buildx build --platform %platform% -t ghcr.io/rachelos/%name% --push .
     docker image ls
 )
