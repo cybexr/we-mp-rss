@@ -266,7 +266,7 @@ async def get_prev_article(
                     message="当前文章不存在"
                 )
             )
-        
+
         # 查询发布时间更早的第一篇文章
         prev_article = session.query(Article)\
             .filter(Article.publish_time < current_article.publish_time)\
@@ -274,7 +274,7 @@ async def get_prev_article(
             .filter(Article.mp_id == current_article.mp_id)\
             .order_by(Article.publish_time.desc())\
             .first()
-        
+
         if not prev_article:
             raise HTTPException(
                 status_code=fast_status.HTTP_406_NOT_ACCEPTABLE,
@@ -283,7 +283,7 @@ async def get_prev_article(
                     message="没有上一篇文章"
                 )
             )
-        
+
         return success_response(prev_article)
     except HTTPException as e:
         raise e
@@ -293,5 +293,82 @@ async def get_prev_article(
             detail=error_response(
                 code=50001,
                 message=f"获取上一篇文章失败: {str(e)}"
+            )
+        )
+
+@router.post("/{article_id}/reextract", summary="重新提取文章内容")
+async def reextract_article(
+    article_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    session = DB.get_session()
+    try:
+        # 查询文章
+        article = session.query(Article).filter(Article.id == article_id).first()
+        if not article:
+            raise HTTPException(
+                status_code=fast_status.HTTP_404_NOT_FOUND,
+                detail=error_response(
+                    code=40401,
+                    message="文章不存在"
+                )
+            )
+
+        # 构建URL
+        if article.url:
+            url = article.url
+        else:
+            url = f"https://mp.weixin.qq.com/s/{article.id}"
+
+        print_info(f"正在重新提取文章内容: {article.title}, URL: {url}")
+
+        # 根据配置选择提取方法
+        content = None
+        if cfg.get("gather.content_mode", "web") == "web":
+            # 使用 Web 浏览器方式提取
+            from driver.wxarticle import Web
+            try:
+                article_data = Web.get_article_content(url)
+                content = article_data.get("content", "")
+            except Exception as e:
+                print_error(f"Web方式提取内容失败: {str(e)}")
+        else:
+            # 使用 WxGather 方式提取
+            from core.wx.base import WxGather
+            try:
+                ga = WxGather().Model()
+                content = ga.content_extract(url)
+            except Exception as e:
+                print_error(f"WxGather方式提取内容失败: {str(e)}")
+
+        # 更新文章内容
+        if content:
+            article.content = content
+            if content == "DELETED":
+                print_error(f"文章 {article.title} 内容已被发布者删除")
+                article.status = DATA_STATUS.DELETED
+            session.commit()
+            print_success(f"成功重新提取文章 {article.title} 的内容")
+            return success_response(article, message="重新提取文章内容成功")
+        else:
+            print_error(f"重新提取文章 {article.title} 内容失败")
+            raise HTTPException(
+                status_code=fast_status.HTTP_406_NOT_ACCEPTABLE,
+                detail=error_response(
+                    code=50001,
+                    message="重新提取文章内容失败"
+                )
+            )
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        session.rollback()
+        print_error(f"重新提取文章内容时发生错误: {str(e)}")
+        raise HTTPException(
+            status_code=fast_status.HTTP_406_NOT_ACCEPTABLE,
+            detail=error_response(
+                code=50001,
+                message=f"重新提取文章内容失败: {str(e)}"
             )
         )

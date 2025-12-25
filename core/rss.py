@@ -137,10 +137,12 @@ class RSS:
                 enclosure.set("type", "image/jpeg")
             if full_context==True:
                 try:
+                    # Apply content formatting including image preprocessing
+                    formatted_content = format_content(rss_item['content'], 'html')
                     if cfg.get("rss.cdata",False)==True:
-                        content = f"<![CDATA[{str(rss_item['content'])}]]>"  # 使用CDATA包裹内容
+                        content = f"<![CDATA[{str(formatted_content)}]]>"  # 使用CDATA包裹内容
                     else:
-                        content = str(rss_item['content'])
+                        content = str(formatted_content)
                     ET.SubElement(item, "content:encoded").text = content
                 except Exception as e:
                     print(f"Error adding content:encoded element: {e}")

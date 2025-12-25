@@ -1,3 +1,10 @@
+# ai 
+claude.md
+CLAUDE.md
+.workflow/
+.claude-trace/
+
+#
 __pycache__
 *.xml
 *.tmp

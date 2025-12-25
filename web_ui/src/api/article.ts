@@ -131,3 +131,12 @@ export const ClearDuplicateArticle = (id: number) => {
   return http.delete<{code: number, message: string}>(`/wx/articles/clean_duplicate_articles`)
 }
 
+/**
+ * 重新提取文章内容
+ * @param id 文章ID
+ * @returns 重新提取结果
+ */
+export const reextractArticle = (id: number) => {
+  return http.post<{code: number, message: string, data: Article}>(`/wx/articles/${id}/reextract`)
+}
+

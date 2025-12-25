@@ -141,6 +141,9 @@
                 <a-button type="text" @click="viewArticle(record)" :title="record.id">
                   <template #icon><icon-eye /></template>
                 </a-button>
+                <a-button type="text" @click="reextractArticle(record)" :loading="reextractLoading" :disabled="reextractLoading">
+                  <template #icon><icon-sync /></template>
+                </a-button>
                 <a-button type="text" status="danger" @click="deleteArticle(record.id)">
                   <template #icon><icon-delete /></template>
                 </a-button>
@@ -190,8 +193,8 @@ import { Avatar } from '@/utils/constants'
 import { translatePage, setCurrentLanguage } from '@/utils/translate';
 import { ref, onMounted, h } from 'vue'
 import axios from 'axios'
-import { IconApps, IconAtt, IconDelete, IconEdit, IconEye, IconRefresh, IconScan, IconWeiboCircleFill, IconWifi, IconCode } from '@arco-design/web-vue/es/icon'
-import { getArticles, deleteArticle as deleteArticleApi, ClearArticle, ClearDuplicateArticle, getArticleDetail } from '@/api/article'
+import { IconApps, IconAtt, IconDelete, IconEdit, IconEye, IconRefresh, IconScan, IconWeiboCircleFill, IconWifi, IconCode, IconSync } from '@arco-design/web-vue/es/icon'
+import { getArticles, deleteArticle as deleteArticleApi, ClearArticle, ClearDuplicateArticle, getArticleDetail, reextractArticle as reextractArticleApi } from '@/api/article'
 import { ExportOPML, ExportMPS, ImportMPS } from '@/api/export'
 import ExportModal from '@/components/ExportModal.vue'
 import { getSubscriptions, UpdateMps } from '@/api/subscription'
@@ -204,6 +207,7 @@ import TextIcon from '@/components/TextIcon.vue'
 
 const articles = ref([])
 const loading = ref(false)
+const reextractLoading = ref(false)
 const mpList = ref([])
 const mpLoading = ref(false)
 const activeMpId = ref('')
@@ -570,6 +574,20 @@ const deleteArticle = (id: number) => {
       Message.info('已取消删除操作');
     }
   });
+}
+
+const reextractArticle = async (record: any) => {
+  reextractLoading.value = true
+  Message.info('正在重新提取...')
+  try {
+    await reextractArticleApi(record.id)
+    Message.success('提取成功')
+    await fetchArticles()
+  } catch (error: any) {
+    Message.error(error.message || '提取失败')
+  } finally {
+    reextractLoading.value = false
+  }
 }
 
 const handleBatchDelete = () => {
