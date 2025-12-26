@@ -11,7 +11,7 @@ server:
    #启动JOB定时任务，默认为True
    enable_job: ${ENABLE_JOB:-True}
    #代码修改自动重启服务，默认为False
-   auto_reload: ${AUTO_RELOAD:-False}
+   auto_reload: ${AUTO_RELOAD:-True}
    #最大线程数 默认2个线程，不建议超过4个线程
    threads: ${THREADS:-2}
    #通过web方式授权二维码 默认False 
@@ -76,6 +76,18 @@ token_expire_minutes: ${TOKEN_EXPIRE_MINUTES:-4320}
 cache:
   #缓存目录，默认为./data/cache
   dir: ${CACHE.DIR:-./data/cache}
+  #是否启用缓存，默认为True
+  enabled: ${CACHE.ENABLED:-True}
+  #缓存过期时间，默认为3600秒（1小时）
+  ttl: ${CACHE.TTL:-3600}
+  #视图缓存配置
+  views:
+    #是否启用视图缓存，默认为True
+    enabled: ${CACHE.VIEWS.ENABLED:-False}
+    #视图缓存目录，默认为./data/cache/views
+    dir: ${CACHE.VIEWS.DIR:-./data/cache/views}
+    #视图缓存过期时间，默认为1800秒（30分钟）
+    ttl: ${CACHE.VIEWS.TTL:-1800}
 
 article:
   #是否真实删除文章，默认False，如果为True，则会删除数据库中的记录
@@ -85,7 +97,7 @@ gather:
   #是否采集内容  默认False
   content: ${GATHER.CONTENT:-False}
   #采集模式，web模式（可采集到发布链接)，api模式（可采集临时链接），app模式（采集最新消息）
-  model: ${GATHER.MODEL:-app}
+  model: ${GATHER.MODEL:-web}
   #是否自动检查未采集文章内容，默认False
   content_auto_check: ${GATHER.CONTENT_AUTO_CHECK:-False}
   #自动检查未采集文章内容的时间间隔 单位秒默认59分钟 允许值 1-59分钟之间 默认59分钟
@@ -93,7 +105,7 @@ gather:
   #内容修正模式，默认web 允许值 web、api
   content_mode: ${GATHER.CONTENT_MODE:-web}
   #是否清理html标签 默认True 
-  clean_html: ${GATHER.CLEAN_HTML:-True}
+  clean_html: ${GATHER.CLEAN_HTML:-False}
   #浏览器类型 默认firefox 允许值 firefox/edge/webkit
   browser_type: ${BROWSER_TYPE:-firefox}
 #安全配置
@@ -118,3 +130,9 @@ export:
     enable: ${EXPORT_MARKDOWN:-False}
     #markdown导出目录 默认./data/markdown
     dir: ${EXPORT_MARKDOWN_DIR:-./data/markdown}
+
+
+site:
+  name: ${SITE_NAME:-WeRss}
+  description: ${SITE_DESCRIPTION:-A WeChat Official Account RSS Reader}
+  keywords: ${SITE_KEYWORDS:-}

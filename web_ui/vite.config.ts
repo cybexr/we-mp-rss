@@ -32,6 +32,10 @@ export default defineConfig(({ command, mode }) => {
       host: "0.0.0.0",
       port: 3000,
       proxy: {
+        "/views": {
+          target: env.VITE_API_BASE_URL,
+          changeOrigin: true,
+        },
         "/static": {
           target: env.VITE_API_BASE_URL,
           changeOrigin: true,

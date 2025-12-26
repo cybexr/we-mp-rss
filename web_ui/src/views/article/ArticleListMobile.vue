@@ -25,7 +25,23 @@
               <a-list-item>
                 <a-list-item-meta>
                   <template #title>
-                    <a-typography-text strong :heading="1"><strong>{{ item.title }}</strong></a-typography-text>
+                    <div class="article-title-container">
+                      <div 
+                        @click="toggleReadStatus(item)" 
+                        class="read-status-icon"
+                        :class="{ 'read': item.is_read === 1 }"
+                      >
+                        <icon-check v-if="item.is_read === 1" />
+                        <icon-close v-else />
+                      </div>
+                      <a-typography-text 
+                        strong 
+                        :heading="1"
+                        :class="{ 'article-title-read': item.is_read === 1 }"
+                      >
+                        <strong>{{ item.title }}</strong>
+                      </a-typography-text>
+                    </div>
                   </template>
                   <template #description>
                     <a-typography-text strong :heading="2" @click="viewArticle(item)">{{ item.mp_name || '未知公众号' }}</a-typography-text>
@@ -111,10 +127,11 @@
 import { formatDateTime,formatTimestamp } from '@/utils/date'
 import { Avatar } from '@/utils/constants'
 import { ref, onMounted } from 'vue'
-import { getArticles, getArticleDetail,getPrevArticle,getNextArticle} from '@/api/article'
+import { IconCheck, IconClose } from '@arco-design/web-vue/es/icon'
+import { getArticles, getArticleDetail,getPrevArticle,getNextArticle,toggleArticleReadStatus } from '@/api/article'
 import { getSubscriptions } from '@/api/subscription'
 import { Message } from '@arco-design/web-vue'
-
+import { ProxyImage } from '@/utils/constants'
 const articles = ref([])
 const loading = ref(false)
 const mpList = ref([])
@@ -201,10 +218,7 @@ const handleSearch = () => {
   fetchArticles()
 }
  const processedContent = (record: any) => {
- return record.content.replace(
-      /(<img[^>]*src=["'])(?!\/static\/res\/logo\/)([^"']*)/g,
-      '$1/static/res/logo/$2'
- ).replace(/<img([^>]*)width=["'][^"']*["']([^>]*)>/g, '<img$1$2>')
+  return ProxyImage(record.content)
  }
 const viewArticle = async (record: any,action_type: number) => {
   loading.value = true
@@ -220,6 +234,11 @@ const viewArticle = async (record: any,action_type: number) => {
     }
     articleModalVisible.value = true
     window.location="#topreader"
+    
+    // 自动标记为已读（仅在查看当前文章时，不是上一篇/下一篇）
+    if (action_type === 0 && record.is_read !== 1) {
+      await toggleReadStatus(record)
+    }
   } catch (error) {
     console.error('获取文章详情错误:', error)
     Message.error(error)
@@ -287,6 +306,25 @@ const fetchMpList = async () => {
     mpLoading.value = false
   }
 }
+
+// 切换文章阅读状态
+const toggleReadStatus = async (record: any) => {
+  try {
+    const newReadStatus = record.is_read === 1 ? false : true;
+    await toggleArticleReadStatus(record.id, newReadStatus);
+    
+    // 更新本地数据
+    const index = articles.value.findIndex(item => item.id === record.id);
+    if (index !== -1) {
+      articles.value[index].is_read = newReadStatus ? 1 : 0;
+    }
+    
+    Message.success(`文章已标记为${newReadStatus ? '已读' : '未读'}`);
+  } catch (error) {
+    console.error('更新阅读状态失败:', error);
+    Message.error('更新阅读状态失败');
+  }
+};
 
 onMounted(() => {
   fetchMpList()
@@ -372,6 +410,33 @@ a-button {
 }
 .arco-list-wrapper{
   width:80vw;
+}
+
+.article-title-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.read-status-icon {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--color-text-3);
+  transition: all 0.2s ease;
+}
+
+.read-status-icon:hover {
+  transform: scale(1.1);
+}
+
+.read-status-icon.read {
+  color: var(--color-success);
+}
+
+.article-title-read {
+  text-decoration: line-through;
+  opacity: 0.7;
 }
 </style>
 <style>

@@ -1,14 +1,16 @@
 import requests
 import json
 import re
+import time
 from core.models import Feed
 from core.db import DB
 from core.models.feed import Feed
 from .cfg import cfg,wx_cfg
-from core.print import print_error,print_info
+from core.print import print_error,print_info, print_warning
 from core.rss import RSS
 from driver.success import setStatus
 from driver.wxarticle import Web
+from core.wait import Wait
 import random
 # 定义一些常见的 User-Agent
 USER_AGENTS = [
@@ -66,6 +68,7 @@ class WxGather:
         self.articles=[]
         self.is_add=is_add
         self._cookies={}
+        self.start_time = None  # 记录开始时间
         session=  requests.Session()
         timeout = (5, 10)  
         session.timeout = timeout
@@ -108,12 +111,14 @@ class WxGather:
             if r.status_code == 200:
                 text = r.text
                 text=self.remove_common_html_elements(text)
-                if "当前环境异常，完成验证后即可继续访问" in text:
-                    print_error("当前环境异常，完成验证后即可继续访问")
-                    text=""
         except:
             pass
         return text
+    def Wait(self,min=10,max=60,tips:str=""):
+        wait=random.randint(min,max)
+        print_warning(f"{tips}等待{wait}秒后重试...")
+        time.sleep(wait)
+
     def FillBack(self,CallBack=None,data=None,Ext_Data=None):
         if CallBack is not None:
             if data is not  None:
@@ -135,7 +140,7 @@ class WxGather:
                     art["ext"]=Ext_Data
                     # art.pop("content")
                     self.articles.append(art)
-
+                Wait(min=1,max=5,tips=f"获取 {data['title']}...")
 
     #通过公众号码平台接口查询公众号
     def search_Biz(self,kw:str="",limit=10,offset=0):
@@ -188,6 +193,7 @@ class WxGather:
              self.Error("请先扫码登录公众号平台")
              return
         import time
+        self.start_time = time.time()  # 记录开始执行时间
         self.update_mps(mp_id,Feed(
           sync_time=int(time.time()),
           update_time=int(time.time()),
@@ -199,6 +205,7 @@ class WxGather:
         _cookies.append({'name':'token','value':self.token})
         if CallBack is not None:
             CallBack(item)
+        self.Wait(tips=f"{item['mps_title']} 处理完成",min=3,max=10)
         pass
     def Error(self,error:str,code=None):
         self.Over()
@@ -215,6 +222,12 @@ class WxGather:
         print_error(error)
 
     def Over(self,CallBack=None):
+        import time
+        end_time = time.time()
+        execution_time = 0
+        if self.start_time is not None:
+            execution_time = end_time - self.start_time
+        
         if getattr(self, 'articles', None) is not None:
             print(f"成功{len(self.articles)}条")
             rss=RSS()
@@ -224,6 +237,21 @@ class WxGather:
             except:
                 pass
             rss.clear_cache(mp_id=mp_id)  
+        
+        # 输出执行时间统计
+        if execution_time > 0:
+            if execution_time < 60:
+                print(f"执行耗时: {execution_time:.2f}秒")
+            elif execution_time < 3600:
+                minutes = int(execution_time // 60)
+                seconds = execution_time % 60
+                print(f"执行耗时: {minutes}分{seconds:.2f}秒")
+            else:
+                hours = int(execution_time // 3600)
+                minutes = int((execution_time % 3600) // 60)
+                seconds = execution_time % 60
+                print(f"执行耗时: {hours}小时{minutes}分{seconds:.2f}秒")
+        
         if CallBack is not None:
             CallBack(self.articles)
 
@@ -240,7 +268,11 @@ class WxGather:
 
 
     def remove_common_html_elements(self, html_content: str) -> str:
-        html_content=Web.clean_article_content(html_content)
+        if "当前环境异常，完成验证后即可继续访问" in html_content:
+                Wait(tips="当前环境异常，完成验证后即可继续访问")
+                html_content=""
+        else:
+            html_content=Web.clean_article_content(html_content)
         return html_content
 
     # 更新公众号更新状态

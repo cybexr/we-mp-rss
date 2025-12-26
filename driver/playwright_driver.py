@@ -60,11 +60,14 @@ class PlaywrightController:
     def start_browser(self, headless=True, mobile_mode=False, dis_image=True, browser_name=browsers_name, language="zh-CN", anti_crawler=True):
         try:
             # 使用线程锁确保线程安全
-            if  bool(os.getenv("NOT_HEADLESS",False)):
+            if  os.getenv("NOT_HEADLESS",False):
                 headless = False
+            else:
+                headless = True
+
+            if self.system != "windows":
+                headless = True
             if self.driver is None:
-                    # 修复所有操作系统下的异步子进程问题
-                # self.is_async()
                 if sys.platform == "win32" :
                     # 设置事件循环策略为WindowsSelectorEventLoopPolicy
                     # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())

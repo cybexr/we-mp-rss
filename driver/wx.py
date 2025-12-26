@@ -152,12 +152,14 @@ class Wx:
                                     cookies = self.controller.get_cookies()
                                     exp=self.format_token(cookies)
                                     exp_time=exp["expiry"]["expiry_time"]
+                                    token=exp["token"]
                                 except Exception as e:
                                     print_error(e)
                                     exp_time="-"
+                                    token="-"
                                     pass
                                 self.Close()
-                                sys_notice(f"账号切换成功\n- 账号名称: {account_name} \n- 账号ID: {account_id} \n- 过期时间: {exp_time}", str(cfg.get("server.code_title","WeRss账号切换成功")))
+                                sys_notice(f"账号切换成功\n- 账号名称: {account_name} \n- 账号ID: {account_id} \n - Token: {token} \n- 过期时间: {exp_time}", str(cfg.get("server.code_title","WeRss账号切换成功")))
                                 return True
                             else:
                                 print_warning("没有找到可切换的账号")
@@ -185,7 +187,7 @@ class Wx:
         self.Clean()
         print("子线程执行中")
         from core.thread import ThreadManager
-        self.thread = ThreadManager(target=self.wxLogin,args=(CallBack,False))  # 传入函数名
+        self.thread = ThreadManager(target=self.wxLogin,args=(CallBack,True))  # 传入函数名
         self.thread.start()  # 启动线程
         from core.ver import VERSION
         print(f"微信公众平台登录 v{VERSION}")
@@ -294,7 +296,7 @@ class Wx:
                 except Exception as e:
                     print(f"二维码图片获取失败: {str(e)}")
         return self.isLock
-    def wxLogin(self, CallBack=None, NeedExit=False):
+    def wxLogin(self, CallBack=None, NeedExit=True):
         """
         微信公众平台登录流程：
         1. 检查依赖和环境
@@ -382,10 +384,8 @@ class Wx:
             return self.SESSION
         finally:
             self.release_lock()
-            # 只有在NeedExit为True且未登录成功时才清理资源
-            if NeedExit and 'controller' in locals() and not self._haslogin:
-                self.controller.cleanup()
-                self.Clean()
+            if NeedExit :
+                self.Close()
         return self.SESSION
     def format_token(self, cookies: list, token: str = ""):
         cookies_str=""
@@ -521,7 +521,7 @@ class Wx:
         rel=False
         try:
             if hasattr(self, 'controller') and self.controller is not None:
-                self.controller.cleanup()
+                self.controller.Close()
                 rel=True
         except Exception as e:
             print_warning("浏览器未启动或已关闭")

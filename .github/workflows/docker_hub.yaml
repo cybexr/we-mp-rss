@@ -10,6 +10,7 @@ on:
       - 'core/ver.py'
       - 'Dockerfile'
       - 'requirements.txt'
+      - 'config.example.yaml'
 
 env:
   REGISTRY: docker.io

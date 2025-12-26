@@ -133,6 +133,7 @@
         </a-space>
       </div>
       <div class="header-right" v-if="hasLogined">
+        <a-link href="/views/home" target="_blank" style="margin-right: 20px;">Views</a-link>
         <a-link href="/api/docs" target="_blank" style="margin-right: 20px;">Docs</a-link>
         <a-link href="https://gitee.com/rachel_os/we-mp-rss" target="_blank" style="margin-right: 20px;">Gitee</a-link>
         <a-link href="https://github.com/rachelos/we-mp-rss" target="_blank" style="margin-right: 20px;">GitHub</a-link>

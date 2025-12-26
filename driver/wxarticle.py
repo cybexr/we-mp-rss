@@ -4,8 +4,10 @@ from .playwright_driver import PlaywrightController
 from typing import Dict
 from core.print import print_error,print_info,print_success,print_warning
 import time
+import core.wait as Wait
 import base64
 import re
+from bs4 import BeautifulSoup
 import os
 from datetime import datetime
 from core.config import cfg
@@ -202,8 +204,7 @@ class WXArticleFetcher:
                     article_data['content'] = content_backup
                     
                     # 避免请求过快，但只在非最后一个请求时等待
-                    if i < total_count:
-                        time.sleep(3)
+                    Wait(1,2,tips=f"处理第 {i}/{total_count} 篇文章")
                         
                 except Exception as e:
                     print_error(f"处理文章失败 {url}: {e}")
@@ -274,7 +275,7 @@ class WXArticleFetcher:
                 #     page.locator("#js_verify").click()
                 # except:
                 self.controller.cleanup()
-                time.sleep(5)
+                Wait(tips="当前环境异常，完成验证后即可继续访问")
                 raise Exception("当前环境异常，完成验证后即可继续访问")
             if "该内容已被发布者删除" in body or "The content has been deleted by the author." in body:
                 info["content"]="DELETED"
@@ -356,21 +357,22 @@ class WXArticleFetcher:
             # 记录详细错误信息但继续执行
 
         try:
-            # 等待关键元素加载
-            # 使用更精确的选择器避免匹配多个元素
-            ele_logo = page.locator('#js_like_profile_bar .wx_follow_avatar img')
-            # 获取<img>标签的src属性
-            logo_src = ele_logo.get_attribute('src')
+            if info["content"]!="DELETED":
+                # 等待关键元素加载
+                # 使用更精确的选择器避免匹配多个元素
+                ele_logo = page.locator('#js_like_profile_bar .wx_follow_avatar img')
+                # 获取<img>标签的src属性
+                logo_src = ele_logo.get_attribute('src')
 
-            # 获取公众号名称
-            title = page.evaluate('() => $("#js_wx_follow_nickname").text()')
-            biz = page.evaluate('() => window.biz')
-            info["mp_info"]={
-                "mp_name":title,
-                "logo":logo_src,
-                "biz": biz or self.extract_biz_from_source(url, page), 
-            }
-            info["mp_id"]= "MP_WXS_"+base64.b64decode(info["mp_info"]["biz"]).decode("utf-8")
+                # 获取公众号名称
+                title = page.evaluate('() => $("#js_wx_follow_nickname").text()')
+                biz = page.evaluate('() => window.biz')
+                info["mp_info"]={
+                    "mp_name":title,
+                    "logo":logo_src,
+                    "biz": biz or self.extract_biz_from_source(url, page), 
+                }
+                info["mp_id"]= "MP_WXS_"+base64.b64decode(info["mp_info"]["biz"]).decode("utf-8")
         except Exception as e:
             print_error(f"获取公众号信息失败: {str(e)}")   
             pass
@@ -409,10 +411,72 @@ class WXArticleFetcher:
             print_success(f"PDF 文件已生成{output_path}")
         except Exception as e:
             print_error(f"生成 PDF 失败: {str(e)}")
+    
+    def fix_images(self,content:str)->str:
+        try:
+            soup = BeautifulSoup(content, 'html.parser')
+            # 找到内容
+            js_content_div = soup
+            # 移除style属性中的visibility: hidden;
+            if js_content_div is None:
+                return ""
+            js_content_div.attrs.pop('style', None)
+            # 找到所有的img标签
+            img_tags = js_content_div.find_all('img')
+            # 遍历每个img标签并修改属性，设置宽度为1080p
+            for img_tag in img_tags:
+                if 'data-src' in img_tag.attrs:
+                    img_tag['src'] = img_tag['data-src']
+                    del img_tag['data-src']
+                if 'style' in img_tag.attrs:
+                    style = img_tag['style']
+                    # 使用正则表达式替换width属性
+                    style = re.sub(r'width\s*:\s*\d+\s*px', 'width: 1080px', style)
+                    img_tag['style'] = style
+            return  js_content_div.prettify()
+        except Exception as e:
+            print_error(f"修复图片失败: {str(e)}")
+        return content
+    def get_image_url(self,url:str)->str:
+        base_url=cfg.get("server.base_url","")
+        return f"{base_url}/static/res/logo/{url}" 
+    def get_description(self,content:str,length:int=200)->str:
+        soup = BeautifulSoup(content, 'html.parser')
+            # 找到内容
+        js_content_div = soup
+        if js_content_div is None:
+            return ""
+        content = js_content_div.get_text().strip().strip("\n").replace("\n"," ").replace("\r"," ")
+        return content[:length]+"..." if len(content)>length else content
 
+    def proxy_images(self,content:str)->str:
+        try:
+            soup = BeautifulSoup(content, 'html.parser')
+            # 找到内容
+            js_content_div = soup
+            # 移除style属性中的visibility: hidden;
+            if js_content_div is None:
+                return ""
+            js_content_div.attrs.pop('style', None)
+            # 找到所有的img标签
+            img_tags = js_content_div.find_all('img')
+            # 遍历每个img标签并修改属性，设置宽度为1080p
+            for img_tag in img_tags:
+                if 'src' in img_tag.attrs:
+                    img_tag['src'] = self.get_image_url(img_tag['src'])
+                if 'style' in img_tag.attrs:
+                    style = img_tag['style']
+                    # 使用正则表达式替换width属性
+                    style = re.sub(r'width\s*:\s*\d+\s*px', 'width: 100%', style)
+                    img_tag['style'] = style
+            return  js_content_div.prettify()
+        except Exception as e:
+            print_error(f"Proxy图片失败: {str(e)}")
+        return content
    
     def clean_article_content(self,html_content: str):
         from tools.html import htmltools
+        html_content=self.fix_images(html_content)
         if not cfg.get("gather.clean_html",False):
             return html_content
         return htmltools.clean_html(str(html_content).strip(),

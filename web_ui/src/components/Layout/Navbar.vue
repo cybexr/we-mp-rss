@@ -15,7 +15,7 @@
         <template #icon>
           <icon-export />
         </template>
-        导出纪录
+        导出记录
       </a-menu-item>
       <a-menu-item key="/tags">
         <template #icon>

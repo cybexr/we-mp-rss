@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from schemas.tags import Tags, TagsCreate
 from .base import success_response, error_response
 from core.auth import get_current_user, requires_permission
+from core.cache import clear_cache_pattern
 
 # 标签管理API路由
 # 提供标签的增删改查功能
@@ -78,6 +79,11 @@ async def create_tag(tag: TagsCreate, db: Session = Depends(get_db),cur_user: di
         db.add(db_tag)
         db.commit()
         db.refresh(db_tag)
+        
+        # 清除相关缓存
+        clear_cache_pattern("home_page")
+        clear_cache_pattern("tag_detail")
+        
         return success_response(data=db_tag)
     except Exception as e:
          from core.print  import print_error
@@ -145,6 +151,11 @@ async def update_tag(tag_id: str, tag_data: TagsCreate, db: Session = Depends(ge
         
         db.commit()
         db.refresh(tag)
+        
+        # 清除相关缓存
+        clear_cache_pattern("home_page")
+        clear_cache_pattern("tag_detail")
+        
         return success_response(data=tag)
     except Exception as e:
         return error_response(code=500, message=str(e))
@@ -170,6 +181,11 @@ async def delete_tag(tag_id: str, db: Session = Depends(get_db),cur_user: dict =
             return error_response(code=status.HTTP_201_CREATED, message="Tag not found")
         db.delete(tag)
         db.commit()
+        
+        # 清除相关缓存
+        clear_cache_pattern("home_page")
+        clear_cache_pattern("tag_detail")
+        
         return success_response(message="Tag deleted successfully")
     except Exception as e:
         return error_response(code=status.HTTP_201_CREATED, message=str(e))

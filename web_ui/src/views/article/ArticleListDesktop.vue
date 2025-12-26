@@ -62,6 +62,13 @@
         <a-page-header :title="activeFeed ? activeFeed.name : '全部'" :subtitle="'管理您的公众号订阅内容'" :show-back="false">
           <template #extra>
             <a-space>
+              <span style="font-size: 12px; color: var(--color-text-3);">{{ issourceUrl ? '原链接' : '内链' }}</span>
+              <a-switch 
+                v-model="issourceUrl" 
+                size="small" 
+                style="margin: 0 8px;">
+              </a-switch>
+
               <a-button  @click="handleExportShow()">
                 <template #icon><icon-export /></template>
                 导出
@@ -71,14 +78,23 @@
                 <template #icon><icon-refresh /></template>
                 刷新
               </a-button>
-              <a-button @click="clear_articles" v-else>
-                <template #icon><icon-delete /></template>
-                清理无效文章
-              </a-button>
-              <a-button @click="clear_duplicate_article" v-if="activeFeed?.id == ''">
-                <template #icon><icon-delete /></template>
-                清理重复文章
-              </a-button>
+              <a-dropdown>
+                <a-button v-if="activeFeed?.id == ''">
+                  <template #icon><icon-delete /></template>
+                  清理
+                  <icon-down />
+                </a-button>
+                <template #content>
+                  <a-doption @click="clear_articles">
+                    <template #icon> <TextIcon text="E" /></template>
+                    清理无效文章
+                  </a-doption>
+                  <a-doption @click="clear_duplicate_article">
+                    <template #icon> <TextIcon text="C" /></template>
+                    清理重复文章
+                  </a-doption>
+                </template>
+              </a-dropdown>
               <a-button @click="handleAuthClick">
                 <template #icon><icon-scan /></template>
                 刷新授权
@@ -141,9 +157,6 @@
                 <a-button type="text" @click="viewArticle(record)" :title="record.id">
                   <template #icon><icon-eye /></template>
                 </a-button>
-                <a-button type="text" @click="reextractArticle(record)" :loading="reextractLoading" :disabled="reextractLoading">
-                  <template #icon><icon-sync /></template>
-                </a-button>
                 <a-button type="text" status="danger" @click="deleteArticle(record.id)">
                   <template #icon><icon-delete /></template>
                 </a-button>
@@ -176,7 +189,7 @@
             <a-space/>
             <a-link @click="viewArticle(currentArticle,1)" target="_blank">下一篇 </a-link>
             </div>
-            <div v-html="currentArticle.content"></div>
+            <div ref="shadowContainer" style="width: 100%; height: auto;"></div>
 
             <div style="margin-top: 20px; color: var(--color-text-3); text-align: right">
               {{ currentArticle.time }}
@@ -191,10 +204,10 @@
 <script setup lang="ts">
 import { Avatar } from '@/utils/constants'
 import { translatePage, setCurrentLanguage } from '@/utils/translate';
-import { ref, onMounted, h } from 'vue'
+import { ref, onMounted, h, nextTick, watch } from 'vue'
 import axios from 'axios'
-import { IconApps, IconAtt, IconDelete, IconEdit, IconEye, IconRefresh, IconScan, IconWeiboCircleFill, IconWifi, IconCode, IconSync } from '@arco-design/web-vue/es/icon'
-import { getArticles, deleteArticle as deleteArticleApi, ClearArticle, ClearDuplicateArticle, getArticleDetail, reextractArticle as reextractArticleApi } from '@/api/article'
+import { IconApps, IconAtt, IconDelete, IconEdit, IconEye, IconRefresh, IconScan, IconWeiboCircleFill, IconWifi, IconCode, IconCheck, IconClose } from '@arco-design/web-vue/es/icon'
+import { getArticles, deleteArticle as deleteArticleApi, ClearArticle, ClearDuplicateArticle, getArticleDetail, toggleArticleReadStatus } from '@/api/article'
 import { ExportOPML, ExportMPS, ImportMPS } from '@/api/export'
 import ExportModal from '@/components/ExportModal.vue'
 import { getSubscriptions, UpdateMps } from '@/api/subscription'
@@ -204,10 +217,10 @@ import { formatDateTime, formatTimestamp } from '@/utils/date'
 import router from '@/router'
 import { deleteMpApi } from '@/api/subscription'
 import TextIcon from '@/components/TextIcon.vue'
+import { ProxyImage } from '@/utils/constants'
 
 const articles = ref([])
 const loading = ref(false)
-const reextractLoading = ref(false)
 const mpList = ref([])
 const mpLoading = ref(false)
 const activeMpId = ref('')
@@ -250,15 +263,43 @@ const statusColorMap = {
 
 const columns = [
   {
+    title: '已阅',
+    dataIndex: 'is_read',
+    width: '100',
+    render: ({ record }) => {
+      const isRead = record.is_read === 1;
+      return h('div', { 
+        style: { 
+          display: 'flex', 
+          alignItems: 'center', 
+          cursor: 'pointer',
+          color: isRead ? 'var(--color-success)' : 'var(--color-text-3)'
+        },
+        onClick: () => toggleReadStatus(record)
+      }, [
+        h(isRead ? IconCheck : IconClose, { 
+          style: { marginRight: '4px' } 
+        }),
+        h('span', { 
+          style: { fontSize: '12px' } 
+        }, isRead ? '已读' : '未读')
+      ]);
+    }
+  },
+  {
     title: '文章标题',
     dataIndex: 'title',
-    width: window.innerWidth - 1000,
+    width: window.innerWidth - 1100,
     ellipsis: true,
     render: ({ record }) => h('a', {
-      href: record.url || '#',
+      href: issourceUrl.value ? record.url || '#' : "/views/article/" + record.id,
       title: record.title,
       target: '_blank',
-      style: { color: 'var(--color-text-1)' }
+      style: { 
+        color: 'var(--color-text-1)',
+        textDecoration: record.is_read === 1 ? 'line-through' : 'none',
+        opacity: record.is_read === 1 ? 0.7 : 1
+      }
     }, record.title)
   },
   {
@@ -356,7 +397,21 @@ const fetchArticles = async () => {
     loading.value = false
   }
 }
+const issourceUrl = ref(false)
 
+// 从 localStorage 读取 issourceUrl 值
+const initIssourceUrl = () => {
+  const savedValue = localStorage.getItem('issourceUrl')
+  if (savedValue !== null) {
+    issourceUrl.value = savedValue === 'true'
+  }
+}
+
+// 监听 issourceUrl 变化并保存到 localStorage
+import { watch } from 'vue'
+watch(issourceUrl, (newValue) => {
+  localStorage.setItem('issourceUrl', newValue.toString())
+}, { immediate: false })
 const handlePageChange = (page: number, pageSize: number) => {
   console.log('分页事件触发:', { page, pageSize })
   pagination.value.current = page
@@ -525,10 +580,7 @@ const handleAddSuccess = () => {
   fetchArticles()
 }
  const processedContent = (record: any) => {
- return record.content.replace(
-      /(<img[^>]*src=["'])(?!\/static\/res\/logo\/)([^"']*)/g,
-      '$1/static/res/logo/$2'
- ).replace(/<img([^>]*)width=["'][^"']*["']([^>]*)>/g, '<img$1$2>')
+ return ProxyImage(record.content)
  }
 const viewArticle = async (record: any,action_type: number) => {
   loading.value = true
@@ -544,6 +596,15 @@ const viewArticle = async (record: any,action_type: number) => {
     }
     articleModalVisible.value = true
     window.location="#topreader"
+    
+    // 创建或更新 Shadow DOM
+    await nextTick()
+    createShadowHost()
+    
+    // 自动标记为已读（仅在查看当前文章时，不是上一篇/下一篇）
+    if (action_type === 0 && record.is_read !== 1) {
+      await toggleReadStatus(record)
+    }
   } catch (error) {
     console.error('获取文章详情错误:', error)
     Message.error(error)
@@ -558,6 +619,7 @@ const currentArticle = ref({
   url: ''
 })
 const articleModalVisible = ref(false)
+const shadowContainer = ref()
 
 const deleteArticle = (id: number) => {
   Modal.confirm({
@@ -574,20 +636,6 @@ const deleteArticle = (id: number) => {
       Message.info('已取消删除操作');
     }
   });
-}
-
-const reextractArticle = async (record: any) => {
-  reextractLoading.value = true
-  Message.info('正在重新提取...')
-  try {
-    await reextractArticleApi(record.id)
-    Message.success('提取成功')
-    await fetchArticles()
-  } catch (error: any) {
-    Message.error(error.message || '提取失败')
-  } finally {
-    reextractLoading.value = false
-  }
 }
 
 const handleBatchDelete = () => {
@@ -622,6 +670,7 @@ const handleExportShow = async () => {
 
 onMounted(() => {
   console.log('组件挂载，开始获取数据')
+  initIssourceUrl() // 初始化 issourceUrl 值
   fetchMpList().then(() => {
     console.log('公众号列表获取完成')
     fetchArticles()
@@ -749,6 +798,77 @@ const exportArticles = () => {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   Message.success('导出成功');
+};
+
+// 创建 Shadow DOM 隔离容器
+const createShadowHost = () => {
+  if (!shadowContainer.value) return;
+  
+  // 清空容器
+  shadowContainer.value.innerHTML = '';
+  
+  // 创建 Shadow Host
+  const shadowHost = document.createElement('div');
+  shadowHost.style.width = '100%';
+  shadowHost.style.height = 'auto';
+  
+  // 创建 Shadow Root
+  const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
+  
+  // 添加基础样式到 Shadow DOM
+  const style = document.createElement('style');
+  style.textContent = `
+    :host {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    img {
+      max-width: 100% !important;
+      height: auto !important;
+      display: block;
+      margin: 0 auto;
+    }
+    iframe {
+      width: 100% !important;
+      border: none !important;
+    }
+    p {
+      margin: 1em 0;
+      line-height: 1.6;
+    }
+    * {
+      box-sizing: border-box;
+    }
+  `;
+  shadowRoot.appendChild(style);
+  
+  // 创建内容容器
+  const contentDiv = document.createElement('div');
+  contentDiv.innerHTML = currentArticle.value.content || '';
+  shadowRoot.appendChild(contentDiv);
+  
+  // 将 Shadow Host 添加到容器中
+  shadowContainer.value.appendChild(shadowHost);
+};
+
+// 切换文章阅读状态
+const toggleReadStatus = async (record: any) => {
+  try {
+    const newReadStatus = record.is_read === 1 ? false : true;
+    await toggleArticleReadStatus(record.id, newReadStatus);
+    
+    // 更新本地数据
+    const index = articles.value.findIndex(item => item.id === record.id);
+    if (index !== -1) {
+      articles.value[index].is_read = newReadStatus ? 1 : 0;
+    }
+    
+    Message.success(`文章已标记为${newReadStatus ? '已读' : '未读'}`);
+  } catch (error) {
+    console.error('更新阅读状态失败:', error);
+    Message.error('更新阅读状态失败');
+  }
 };
 </script>
 

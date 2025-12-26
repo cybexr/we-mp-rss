@@ -19,6 +19,7 @@ from apis.tags import router as tags_router
 from apis.export import router as export_router
 from apis.tools import router as tools_router
 from apis.github_update import router as github_router
+from views import router as views_router
 import apis
 import os
 from core.config import cfg,VERSION,API_BASE
@@ -82,6 +83,7 @@ feeds_router.include_router(feed_router)
 app.include_router(api_router)
 app.include_router(resource_router)
 app.include_router(feeds_router)
+app.include_router(views_router)
 
 # 静态文件服务配置
 app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")

@@ -8,6 +8,8 @@ from .base import success_response, error_response
 from core.config import cfg
 from apis.base import format_search_kw
 from core.print import print_warning, print_info, print_error, print_success
+from core.cache import clear_cache_pattern
+from tools.fix import fix_article
 router = APIRouter(prefix=f"/articles", tags=["文章管理"])
 
 
@@ -29,6 +31,11 @@ async def clean_orphan_articles(
         
         session.commit()
         
+        # 清除相关缓存
+        clear_cache_pattern("articles_list")
+        clear_cache_pattern("home_page")
+        clear_cache_pattern("tag_detail")
+        
         return success_response({
             "message": "清理无效文章成功",
             "deleted_count": deleted_count
@@ -41,6 +48,52 @@ async def clean_orphan_articles(
             detail=error_response(
                 code=50001,
                 message="清理无效文章失败"
+            )
+        )
+
+@router.put("/{article_id}/read", summary="改变文章阅读状态")
+async def toggle_article_read_status(
+    article_id: str,
+    is_read: bool = Query(..., description="阅读状态: true为已读, false为未读"),
+    current_user: dict = Depends(get_current_user)
+):
+    session = DB.get_session()
+    try:
+        from core.models.article import Article
+        
+        # 检查文章是否存在
+        article = session.query(Article).filter(Article.id == article_id).first()
+        if not article:
+            raise HTTPException(
+                status_code=fast_status.HTTP_404_NOT_FOUND,
+                detail=error_response(
+                    code=40401,
+                    message="文章不存在"
+                )
+            )
+        
+        # 更新阅读状态
+        article.is_read = 1 if is_read else 0
+        session.commit()
+        
+        # 清除相关缓存
+        clear_cache_pattern("articles_list")
+        clear_cache_pattern("article_detail")
+        clear_cache_pattern("tag_detail")
+        
+        return success_response({
+            "message": f"文章已标记为{'已读' if is_read else '未读'}",
+            "is_read": is_read
+        })
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=fast_status.HTTP_406_NOT_ACCEPTABLE,
+            detail=error_response(
+                code=50001,
+                message=f"更新文章阅读状态失败: {str(e)}"
             )
         )
     
@@ -154,7 +207,7 @@ async def get_article_detail(
                     message="文章不存在"
                 )
             )
-        return success_response(article)
+        return success_response(fix_article(article))
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -236,8 +289,7 @@ async def get_next_article(
                     message="没有下一篇文章"
                 )
             )
-        
-        return success_response(next_article)
+        return success_response(fix_article(next_article))
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -266,7 +318,7 @@ async def get_prev_article(
                     message="当前文章不存在"
                 )
             )
-
+        
         # 查询发布时间更早的第一篇文章
         prev_article = session.query(Article)\
             .filter(Article.publish_time < current_article.publish_time)\
@@ -274,7 +326,7 @@ async def get_prev_article(
             .filter(Article.mp_id == current_article.mp_id)\
             .order_by(Article.publish_time.desc())\
             .first()
-
+        
         if not prev_article:
             raise HTTPException(
                 status_code=fast_status.HTTP_406_NOT_ACCEPTABLE,
@@ -283,8 +335,7 @@ async def get_prev_article(
                     message="没有上一篇文章"
                 )
             )
-
-        return success_response(prev_article)
+        return success_response(fix_article(prev_article))
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -348,8 +399,14 @@ async def reextract_article(
                 print_error(f"文章 {article.title} 内容已被发布者删除")
                 article.status = DATA_STATUS.DELETED
             session.commit()
+
+            # 清除相关缓存
+            clear_cache_pattern("articles_list")
+            clear_cache_pattern("article_detail")
+            clear_cache_pattern("tag_detail")
+
             print_success(f"成功重新提取文章 {article.title} 的内容")
-            return success_response(article, message="重新提取文章内容成功")
+            return success_response(fix_article(article), message="重新提取文章内容成功")
         else:
             print_error(f"重新提取文章 {article.title} 内容失败")
             raise HTTPException(

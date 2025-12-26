@@ -11,6 +11,7 @@ on:
       - 'core/ver.py'
       - 'Dockerfile'
       - 'requirements.txt'
+      - 'config.example.yaml'
 #   release:
 #     types: [published]
 jobs:
