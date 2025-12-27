@@ -126,7 +126,29 @@ All endpoints use the consistent response format defined in `base.py`:
 
 ### Integration APIs
 - GitHub update mechanisms
-- WeChat MP integration
+- WeChat MP integration (`mps.py`)
+  - **GET /wx/mps**: List all feeds with optional category filtering
+    - Query parameters: `limit`, `offset`, `kw` (keyword), `category`
+    - Response includes: `cache_images`, `remarks`, `category` fields
+  - **POST /wx/mps**: Create new feed with new field support
+    - Body parameters: `cache_images` (bool), `remarks` (string), `category` (string)
+  - **PUT /wx/mps/{mp_id}`: Update feed metadata (NEW endpoint)
+    - Body: JSON object with any combination of `cache_images`, `remarks`, `category`
+    - Validates: `cache_images` is boolean, strings <= 255 characters
+  - **GET /wx/mps/categories**: List all unique category values (NEW endpoint)
+  - Example usage:
+    ```bash
+    # Get feeds filtered by category
+    GET /wx/mps?category=technology&limit=10
+
+    # Update feed metadata
+    PUT /wx/mps/MP_WXS_123
+    {
+      "cache_images": true,
+      "remarks": "Updated notes",
+      "category": "tech-news"
+    }
+    ```
 - Message queue operations
 
 ## Error Handling

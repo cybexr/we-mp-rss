@@ -37,6 +37,9 @@ The WeChat Mini Program RSS Reader is a comprehensive RSS feed management system
 - Automatic content fetching and parsing
 - Duplicate detection and handling
 - Content categorization and tagging
+- **Feed metadata**: Custom remarks, categorization, and image caching preferences per feed
+- **Category filtering**: Organize and filter feeds by custom categories
+- **Image caching control**: Per-feed toggle for automatic image caching during content extraction
 
 ### Content Processing
 - HTML sanitization and cleaning
@@ -130,10 +133,10 @@ ygg-we-mp-rss/
 ## Deployment
 
 ### Docker Support
-- Multi-stage Dockerfile for production builds
+- Simplified single Dockerfile for production builds (amd64 architecture)
 - Docker Compose for complete stack deployment
 - Environment-based configuration
-- Health checks and monitoring
+- Automated Aliyun ACR deployment via GitHub Actions
 
 ### Production Considerations
 - Database connection pooling

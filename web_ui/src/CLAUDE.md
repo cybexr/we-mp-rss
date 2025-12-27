@@ -52,6 +52,40 @@ The API layer provides TypeScript interfaces and service functions for backend c
 - **file.ts**: File upload/download operations
 - **messageTask.ts**: Notification and message task management
 - **subscription.ts**: RSS feed subscription management
+  - **Interfaces**:
+    - `Subscription`: Defines the structure of a WeChat MP subscription
+      - **New fields**: `cache_images` (boolean), `remarks` (string), `category` (string)
+      - Existing fields: `id`, `mp_name`, `mp_cover`, `mp_intro`, `status`, `created_at`
+    - `AddSubscriptionParams`: Parameters for creating new subscriptions (includes new fields)
+  - **Functions**:
+    - `getSubscriptions(params)`: Fetch subscription list with category filtering support
+    - `addSubscription(data)`: Create new feed with cache_images, remarks, category support
+    - `updateSubscription(id, data)`: Update feed metadata including new fields
+    - `deleteSubscription(id)`: Remove a subscription
+  - **Usage Example**:
+    ```typescript
+    // Create feed with new fields
+    const newFeed = await addSubscription({
+      mp_id: "base64_encoded_id",
+      mp_name: "Tech Blog",
+      mp_cover: "https://example.com/cover.jpg",
+      cache_images: true,  // Enable image caching
+      remarks: "High-quality content",
+      category: "technology"
+    });
+
+    // Update feed metadata
+    await updateSubscription("MP_WXS_123", {
+      cache_images: false,
+      category: "news"
+    });
+
+    // Filter by category
+    const techFeeds = await getSubscriptions({
+      category: "technology",
+      limit: 10
+    });
+    ```
 - **sysInfo.ts**: System information and status
 - **tagManagement.ts**: Article tagging and categorization
 - **tools.ts**: Utility functions and tools

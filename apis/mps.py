@@ -1,5 +1,6 @@
 from logging import info
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from fastapi.background import BackgroundTasks
 from core.auth import get_current_user
@@ -55,6 +56,7 @@ async def get_mps(
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
     kw: str = Query(""),
+    category: Optional[str] = Query(None, description="Filter by category"),
     current_user: dict = Depends(get_current_user)
 ):
     session = DB.get_session()
@@ -63,6 +65,8 @@ async def get_mps(
         query = session.query(Feed)
         if kw:
             query = query.filter(Feed.mp_name.ilike(f"%{kw}%"))
+        if category:
+            query = query.filter(Feed.category == category)
         total = query.count()
         mps = query.order_by(Feed.created_at.desc()).limit(limit).offset(offset).all()
         return success_response({
@@ -72,6 +76,9 @@ async def get_mps(
                 "mp_cover": mp.mp_cover,
                 "mp_intro": mp.mp_intro,
                 "status": mp.status,
+                "cache_images": mp.cache_images,
+                "remarks": mp.remarks,
+                "category": mp.category,
                 "created_at": mp.created_at.isoformat()
             } for mp in mps],
             "page": {
@@ -90,6 +97,36 @@ async def get_mps(
                 message="获取公众号列表失败"
             )
         )
+
+@router.get("/categories", summary="获取公众号分类列表")
+async def get_categories(
+    current_user: dict = Depends(get_current_user)
+):
+    session = DB.get_session()
+    try:
+        from core.models.feed import Feed
+        categories = session.query(Feed.category)\
+            .filter(Feed.category.isnot(None))\
+            .filter(Feed.category != '')\
+            .distinct()\
+            .order_by(Feed.category.asc())\
+            .all()
+
+        category_list = [c[0] for c in categories]
+        return success_response({
+            'categories': category_list
+        })
+    except Exception as e:
+        print(f"获取分类列表错误: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_201_CREATED,
+            detail=error_response(
+                code=50001,
+                message="获取分类列表失败"
+            )
+        )
+    finally:
+        session.close()
 
 @router.get("/update/{mp_id}", summary="更新公众号文章")
 async def update_mps(
@@ -159,7 +196,17 @@ async def get_mp(
                     message="公众号不存在"
                 )
             )
-        return success_response(mp)
+        return success_response({
+            "id": mp.id,
+            "mp_name": mp.mp_name,
+            "mp_cover": mp.mp_cover,
+            "mp_intro": mp.mp_intro,
+            "status": mp.status,
+            "cache_images": mp.cache_images,
+            "remarks": mp.remarks,
+            "category": mp.category,
+            "created_at": mp.created_at.isoformat()
+        })
     except Exception as e:
         print(f"获取公众号详情错误: {str(e)}")
         raise HTTPException(
@@ -203,6 +250,9 @@ async def add_mp(
     mp_id: str = Body(None, max_length=255),
     avatar: str = Body(None, max_length=500),
     mp_intro: str = Body(None, max_length=255),
+    cache_images: bool = Body(False),
+    remarks: str = Body(''),
+    category: str = Body(''),
     current_user: dict = Depends(get_current_user)
 ):
     session = DB.get_session()
@@ -223,6 +273,9 @@ async def add_mp(
             existing_feed.mp_name = mp_name
             existing_feed.mp_cover = local_avatar_path
             existing_feed.mp_intro = mp_intro
+            existing_feed.cache_images = cache_images
+            existing_feed.remarks = remarks
+            existing_feed.category = category
             existing_feed.updated_at = now
         else:
             # 创建新的Feed记录
@@ -237,6 +290,9 @@ async def add_mp(
                 faker_id=mp_id,
                 update_time=0,
                 sync_time=0,
+                cache_images=cache_images,
+                remarks=remarks,
+                category=category,
             )
             session.add(new_feed)
            
@@ -270,6 +326,99 @@ async def add_mp(
             )
         )
 
+
+
+
+@router.put("/{mp_id}", summary="更新公众号信息")
+async def update_mp(
+    mp_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    session = DB.get_session()
+    try:
+        from core.models.feed import Feed
+
+        mp = session.query(Feed).filter(Feed.id == mp_id).first()
+        if not mp:
+            raise HTTPException(
+                status_code=status.HTTP_201_CREATED,
+                detail=error_response(
+                    code=40401,
+                    message="公众号不存在"
+                )
+            )
+
+        request_json = await request.json()
+
+        if 'cache_images' in request_json:
+            cache_images_value = request_json['cache_images']
+            if isinstance(cache_images_value, bool):
+                mp.cache_images = cache_images_value
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_201_CREATED,
+                    detail=error_response(
+                        code=40001,
+                        message="cache_images字段必须是布尔类型"
+                    )
+                )
+
+        if 'remarks' in request_json:
+            remarks_value = request_json['remarks']
+            if isinstance(remarks_value, str) and len(remarks_value) <= 255:
+                mp.remarks = remarks_value
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_201_CREATED,
+                    detail=error_response(
+                        code=40002,
+                        message="remarks字段必须是字符串且长度不超过255"
+                    )
+                )
+
+        if 'category' in request_json:
+            category_value = request_json['category']
+            if isinstance(category_value, str) and len(category_value) <= 255:
+                mp.category = category_value
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_201_CREATED,
+                    detail=error_response(
+                        code=40003,
+                        message="category字段必须是字符串且长度不超过255"
+                    )
+                )
+
+        mp.updated_at = datetime.now()
+        session.commit()
+
+        return success_response({
+            "id": mp.id,
+            "mp_name": mp.mp_name,
+            "mp_cover": mp.mp_cover,
+            "mp_intro": mp.mp_intro,
+            "status": mp.status,
+            "cache_images": mp.cache_images,
+            "remarks": mp.remarks,
+            "category": mp.category,
+            "created_at": mp.created_at.isoformat(),
+            "updated_at": mp.updated_at.isoformat()
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        print(f"更新公众号信息错误: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_201_CREATED,
+            detail=error_response(
+                code=50001,
+                message="更新公众号信息失败"
+            )
+        )
+    finally:
+        session.close()
 
 @router.delete("/{mp_id}", summary="删除订阅号")
 async def delete_mp(

@@ -56,6 +56,20 @@
         <a-form-item label="状态" field="status">
           <a-switch v-model="form.status" />
         </a-form-item>
+        <a-form-item label="缓存图片" field="cache_images">
+          <a-switch v-model="form.cache_images" />
+        </a-form-item>
+        <a-form-item label="备注" field="remarks">
+          <a-textarea v-model="form.remarks" placeholder="添加备注..." :max-length="255" />
+        </a-form-item>
+        <a-form-item label="分类" field="category">
+          <a-auto-complete
+            v-model="form.category"
+            :data="categories"
+            placeholder="选择或输入分类"
+            :max-length="255"
+          />
+        </a-form-item>
       </a-form>
     </a-modal>
   </div>
@@ -63,8 +77,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription } from '@/api/subscription'
+import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getCategories } from '@/api/subscription'
 import { getToken } from '@/utils/auth'
+import { Message } from '@arco-design/web-vue'
 
 const headers = { Authorization: `Bearer ${getToken()}` }
 
@@ -85,12 +100,17 @@ const pagination = reactive({
 
 const visible = ref(false)
 const modalTitle = ref('添加公众号')
+const categories = ref<string[]>([])
+
 const form = reactive({
   mp_id: '',
   mp_name: '',
   mp_cover: '',
   mp_intro: '',
-  status: true
+  status: true,
+  cache_images: false,
+  remarks: '',
+  category: ''
 })
 
 const loadData = async () => {
@@ -117,6 +137,8 @@ const showAddModal = () => {
   Object.keys(form).forEach(key => {
     if (key === 'status') {
       form[key] = true
+    } else if (key === 'cache_images') {
+      form[key] = false
     } else {
       form[key] = ''
     }
@@ -154,8 +176,20 @@ const handleUploadSuccess = (file) => {
   form.mp_cover = file.response.url
 }
 
+const fetchCategories = async () => {
+  try {
+    const res = await getCategories()
+    if (res.code === 0) {
+      categories.value = res.data.categories || []
+    }
+  } catch (error) {
+    console.error('获取分类列表错误:', error)
+  }
+}
+
 onMounted(() => {
   loadData()
+  fetchCategories()
 })
 </script>
 

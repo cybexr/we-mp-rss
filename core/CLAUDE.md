@@ -30,7 +30,25 @@ The `core` module contains the core business logic, data models, and utility fun
 - Handles WeChat integration and user preferences
 
 ### Other Models
-- **Feed**: RSS feed subscription management
+- **Feed** (`models/feed.py`): RSS feed subscription management
+  - Fields: id, mp_name, mp_cover, mp_intro, status, sync_time, update_time, created_at, updated_at, faker_id
+  - **New Fields**:
+    - `cache_images` (Boolean, default=False): Controls automatic image caching during article content extraction
+    - `remarks` (String(255), default=''): User-defined notes or comments for this feed
+    - `category` (String(255), default=''): Custom category for organizing and filtering feeds
+  - Usage Example:
+    ```python
+    from core.models.feed import Feed
+
+    # Create feed with image caching enabled
+    feed = Feed(
+        id="MP_WXS_123",
+        mp_name="Tech Blog",
+        cache_images=True,  # Enable automatic image caching
+        remarks="High-quality tech articles",
+        category="technology"
+    )
+    ```
 - **MessageTask**: Notification task management
 - **Tags**: Article tagging and categorization
 - **ConfigManagement**: Dynamic configuration storage

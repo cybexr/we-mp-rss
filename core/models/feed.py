@@ -1,4 +1,4 @@
-from  .base import Base,Column,String,Integer,DateTime
+from  .base import Base,Column,String,Integer,DateTime,Boolean
 class Feed(Base):   
     from_attributes = True
     __tablename__ = 'feeds'
@@ -12,3 +12,6 @@ class Feed(Base):
     created_at = Column(DateTime) 
     updated_at = Column(DateTime)
     faker_id = Column(String(255))
+    cache_images = Column(Boolean, default=False, comment='Cache images during content extraction')
+    remarks = Column(String(255), default='', comment='User remarks for this feed')
+    category = Column(String(255), default='', comment='Feed category for grouping and filtering')

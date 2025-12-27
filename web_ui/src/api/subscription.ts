@@ -11,6 +11,9 @@ export interface Subscription {
   sync_time: string
   rss_url: string
   article_count: number
+  cache_images: boolean
+  remarks: string
+  category: string
 }
 
 export interface SubscriptionListResult {
@@ -26,6 +29,9 @@ export interface AddSubscriptionParams {
   mp_id: string
   avatar: string
   mp_intro?: string
+  cache_images?: boolean
+  remarks?: string
+  category?: string
 }
 
 export interface MpItem {
@@ -98,4 +104,8 @@ export const searchMps = (kw: string, params: { page?: number; pageSize?: number
     limit: params?.pageSize || 10
   }
   return http.get<SubscriptionListResult>(`/wx/mps`,{ params: apiParams })
+}
+
+export const getCategories = () => {
+  return http.get<{code: number, data: { categories: string[] }}>('/wx/mps/categories')
 }
