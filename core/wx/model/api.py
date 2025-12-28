@@ -81,6 +81,7 @@ class MpsApi(WxGather):
                         if Gather_Content:
                             if not super().HasGathered(item["aid"]):
                                 item["content"] = self.content_extract(item['link'])
+                                super().Wait(3,10,tips=f"{item['title']} 采集完成")
                         else:
                             item["content"] = ""
                         item["id"] = item["aid"]

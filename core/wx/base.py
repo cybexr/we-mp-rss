@@ -116,7 +116,7 @@ class WxGather:
         return text
     def Wait(self,min=10,max=60,tips:str=""):
         wait=random.randint(min,max)
-        print_warning(f"{tips}等待{wait}秒后重试...")
+        print_warning(f"{tips}等待{wait}秒后继续...")
         time.sleep(wait)
 
     def FillBack(self,CallBack=None,data=None,Ext_Data=None):
@@ -140,7 +140,6 @@ class WxGather:
                     art["ext"]=Ext_Data
                     # art.pop("content")
                     self.articles.append(art)
-                Wait(min=1,max=5,tips=f"获取 {data['title']}...")
 
     #通过公众号码平台接口查询公众号
     def search_Biz(self,kw:str="",limit=10,offset=0):

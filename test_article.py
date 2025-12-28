@@ -2,6 +2,8 @@ from os import remove
 from threading import Thread
 
 from sqlalchemy import false
+from core.db import DB
+from core.models.article import Article
 from driver.wxarticle import Web
 from driver.success import Success
 from driver.base import WX_API
@@ -93,13 +95,14 @@ def test_Gather_Article():
     from core.wx.base import WxGather
     ga=WxGather().Model("web")
     urls=[
-        "https://mp.weixin.qq.com/s/puc5q9xFmfMSy3OyqeYxZA",
+        "https://mp.weixin.qq.com/s/CnftGJ187AXZwyzuuIMv8Q",
         #   "https://mp.weixin.qq.com/s/r8AgtesEVSnV-QpEbpb8-Q",
         #   "https://mp.weixin.qq.com/s?__biz=MzI3MTQzNjYxNw==&mid=2247912631&idx=1&sn=6a60ca17a85b2aac8c1236c9df8cbe36&scene=21&poc_token=HNMGC2mj1itdGEMeEq01KxIvG5QUmsY-ZUxsdewX"
         ]
     for url in urls:
         content= ga.content_extract(url)
         print(content)
+        
 
 
 def test_screenshot():
@@ -151,6 +154,19 @@ def test_send_wx_code():
 def testJob():
     from jobs import start_job
     start_job()
+def test_Gather_Mps(mp_id="MP_WXS_2398045337"):
+    from core.wx.base import WxGather
+    from jobs.article import UpdateArticle,Update_Over
+    wx=WxGather().Model()
+    try:
+        mp=DB.get_mps(mp_id)
+        db=DB.get_session()
+        db.query(Article).filter(Article.mp_id==mp_id).delete()
+        db.commit()
+        wx.get_Articles(str(mp.faker_id),CallBack=UpdateArticle,Mps_id=mp.id,Mps_title=mp.mp_name, MaxPage=1,Over_CallBack=Update_Over)
+    except Exception as e:
+        print_error(e)
+
 if __name__=="__main__":
     # import asyncio
     # test_screenshot()
@@ -163,9 +179,9 @@ if __name__=="__main__":
     # testNotice()
     # testMd2Doc()
     # testLogin()
-
+    test_Gather_Mps()
     # testJob()
-    test_send_wx_code()
+    # test_send_wx_code()
     # testCheckAuth()
     # testToken()  # 注释掉避免线程冲突
     # testMarkDown()

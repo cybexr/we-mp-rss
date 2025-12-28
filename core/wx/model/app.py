@@ -14,9 +14,14 @@ class MpsAppMsg(WxGather):
     # 重写 content_extract 方法
     def content_extract(self,  url):
         try:
-           return super().content_extract(url)
+            from driver.wxarticle import Web as App
+            r = App.get_article_content(url)
+            if r!=None:
+                text = r.get("content","")
+                text=self.remove_common_html_elements(text)
+                return  text
         except Exception as e:
-                logger.error(e)
+            logger.error(e)
         return ""
     # 重写 get_Articles 方法
     def get_Articles(self, faker_id:str=None,Mps_id:str=None,Mps_title="",CallBack=None,start_page:int=0,MaxPage:int=1,interval=10,Gather_Content=False,Item_Over_CallBack=None,Over_CallBack=None):
@@ -86,6 +91,7 @@ class MpsAppMsg(WxGather):
                                     if Gather_Content:
                                         if not super().HasGathered(item["aid"]):
                                             item["content"] = self.content_extract(item['link'])
+                                            super().Wait(3,10,tips=f"{item['title']} 采集完成")
                                     else:
                                         item["content"] = ""
                                     item["id"] = item["aid"]
