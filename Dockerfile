@@ -12,7 +12,8 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     INSTALL=True \
     BROWSER_TYPE=webkit \
-    PLANT_PATH=/app/env/
+    PLAYWRIGHT_BROWSERS_PATH=/app/env/driver/_x86_64 \
+    TZ=Asia/Shanghai
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \

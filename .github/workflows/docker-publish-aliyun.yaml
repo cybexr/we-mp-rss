@@ -9,7 +9,6 @@ on:
 env:
   # 阿里云ACR相关配置(从GitHub Secrets获取)
   REGISTRY: ${{ secrets.ALIYUN_ACR_URL }}
-  IMAGE_NAME: yggacr/ygg-we-mp-rss  # 格式: namespace/imagename
 
 jobs:
   build-and-push:
@@ -32,7 +31,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ secrets.ALIYUN_ACR_URL }}/yggacr/ygg-we-mp-rss
           tags: |
             type=raw,value=latest
             type=sha,prefix={{branch}}-
