@@ -3,6 +3,9 @@ name: Docker Image Publish to Aliyun ACR
 permissions:
   contents: read
 
+on:
+  workflow_dispatch:  # 手动触发
+
 env:
   # 阿里云ACR相关配置(从GitHub Secrets获取)
   REGISTRY: ${{ secrets.ALIYUN_ACR_URL }}
