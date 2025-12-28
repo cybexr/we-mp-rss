@@ -3,22 +3,10 @@ name: Docker Image Publish to Aliyun ACR
 permissions:
   contents: read
 
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'ReadMe.md'
-      - 'README.zh-CN.md'
-      - 'core/ver.py'
-      - 'Dockerfile'
-      - 'requirements.txt'
-      - 'config.example.yaml'
-
 env:
   # 阿里云ACR相关配置(从GitHub Secrets获取)
   REGISTRY: ${{ secrets.ALIYUN_ACR_URL }}
-  IMAGE_NAME: ygg-we-mp
+  IMAGE_NAME: ygg-we-mp-rss
 
 jobs:
   build-and-push:
