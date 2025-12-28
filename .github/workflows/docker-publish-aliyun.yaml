@@ -9,7 +9,7 @@ on:
 env:
   # 阿里云ACR相关配置(从GitHub Secrets获取)
   REGISTRY: ${{ secrets.ALIYUN_ACR_URL }}
-  IMAGE_NAME: ygg-we-mp-rss
+  IMAGE_NAME: yggacr/ygg-we-mp-rss  # 格式: namespace/imagename
 
 jobs:
   build-and-push:
