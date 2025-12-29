@@ -1,8 +1,9 @@
 from logging import info
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from fastapi.background import BackgroundTasks
+from sqlalchemy.orm import Session
 from core.auth import get_current_user
 from core.db import DB
 from core.wx import search_Biz
@@ -16,6 +17,15 @@ import os
 from jobs.article import UpdateArticle
 from driver.wxarticle import WXArticleFetcher
 router = APIRouter(prefix=f"/mps", tags=["公众号管理"])
+
+# Database session dependency
+def get_db():
+    """FastAPI dependency for database session management"""
+    db_session = DB.get_session()
+    try:
+        yield db_session
+    finally:
+        db_session.close()
 # import core.db as db
 # UPDB=db.Db("数据抓取")
 # def UpdateArticle(art:dict):
@@ -44,7 +54,7 @@ async def search_mp(
     except Exception as e:
         print(f"搜索公众号错误: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response(
                 code=50001,
                 message=f"搜索公众号失败,请重新扫码授权！",
@@ -57,9 +67,9 @@ async def get_mps(
     offset: int = Query(0, ge=0),
     kw: str = Query(""),
     category: Optional[str] = Query(None, description="Filter by category"),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_db)
 ):
-    session = DB.get_session()
     try:
         from core.models.feed import Feed
         query = session.query(Feed)
@@ -91,7 +101,7 @@ async def get_mps(
     except Exception as e:
         print(f"获取公众号列表错误: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response(
                 code=50001,
                 message="获取公众号列表失败"
@@ -119,7 +129,7 @@ async def get_categories(
     except Exception as e:
         print(f"获取分类列表错误: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response(
                 code=50001,
                 message="获取分类列表失败"
@@ -133,6 +143,7 @@ async def update_mps(
      mp_id: str,
      start_page: int = 0,
      end_page: int = 1,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
     session = DB.get_session()
@@ -155,14 +166,13 @@ async def update_mps(
                     message="请不要频繁更新操作",
                     data={"time_span":time_span}
                 )
-        result=[]    
+        result=[]
         def UpArt(mp):
             from core.wx import WxGather
             wx=WxGather().Model()
             wx.get_Articles(mp.faker_id,Mps_id=mp.id,Mps_title=mp.mp_name,CallBack=UpdateArticle,start_page=start_page,MaxPage=end_page)
             result=wx.articles
-        import threading
-        threading.Thread(target=UpArt,args=(mp,)).start()
+        background_tasks.add_task(UpArt, mp)
         return success_response({
             "time_span":time_span,
             "list":result,
@@ -172,7 +182,7 @@ async def update_mps(
     except Exception as e:
         print(f"更新公众号文章: {str(e)}",e)
         raise HTTPException(
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response(
                 code=50001,
                 message=f"更新公众号文章{str(e)}"
@@ -190,7 +200,7 @@ async def get_mp(
         mp = session.query(Feed).filter(Feed.id == mp_id).first()
         if not mp:
             raise HTTPException(
-                status_code=status.HTTP_201_CREATED,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=error_response(
                     code=40401,
                     message="公众号不存在"
@@ -210,7 +220,7 @@ async def get_mp(
     except Exception as e:
         print(f"获取公众号详情错误: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response(
                 code=50001,
                 message="获取公众号详情失败"
@@ -223,22 +233,24 @@ async def get_mp_by_article(
 ):
     try:
         info =await WXArticleFetcher().async_get_article_content(url)
-        
+
         if not info:
             raise HTTPException(
-                status_code=status.HTTP_201_CREATED,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=error_response(
                     code=40401,
                     message="公众号不存在"
                 )
             )
         return success_response(info)
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"获取公众号详情错误: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=error_response(
-                code=50001,
+                code=40001,
                 message="请输入正确的公众号文章链接"
             )
         )
@@ -319,7 +331,7 @@ async def add_mp(
         session.rollback()
         print(f"添加公众号错误: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response(
                 code=50001,
                 message="添加公众号失败"
@@ -342,7 +354,7 @@ async def update_mp(
         mp = session.query(Feed).filter(Feed.id == mp_id).first()
         if not mp:
             raise HTTPException(
-                status_code=status.HTTP_201_CREATED,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=error_response(
                     code=40401,
                     message="公众号不存在"
@@ -357,7 +369,7 @@ async def update_mp(
                 mp.cache_images = cache_images_value
             else:
                 raise HTTPException(
-                    status_code=status.HTTP_201_CREATED,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     detail=error_response(
                         code=40001,
                         message="cache_images字段必须是布尔类型"
@@ -370,7 +382,7 @@ async def update_mp(
                 mp.remarks = remarks_value
             else:
                 raise HTTPException(
-                    status_code=status.HTTP_201_CREATED,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     detail=error_response(
                         code=40002,
                         message="remarks字段必须是字符串且长度不超过255"
@@ -383,7 +395,7 @@ async def update_mp(
                 mp.category = category_value
             else:
                 raise HTTPException(
-                    status_code=status.HTTP_201_CREATED,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     detail=error_response(
                         code=40003,
                         message="category字段必须是字符串且长度不超过255"
@@ -411,7 +423,7 @@ async def update_mp(
         session.rollback()
         print(f"更新公众号信息错误: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response(
                 code=50001,
                 message="更新公众号信息失败"
@@ -431,13 +443,13 @@ async def delete_mp(
         mp = session.query(Feed).filter(Feed.id == mp_id).first()
         if not mp:
             raise HTTPException(
-                status_code=status.HTTP_201_CREATED,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=error_response(
                     code=40401,
                     message="订阅号不存在"
                 )
             )
-        
+
         session.delete(mp)
         session.commit()
         return success_response({
@@ -448,9 +460,57 @@ async def delete_mp(
         session.rollback()
         print(f"删除订阅号错误: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_response(
                 code=50001,
                 message="删除订阅号失败"
             )
         )
+
+@router.put("/batch-category", summary="批量更新公众号分类")
+async def batch_update_category(
+    mp_ids: List[str] = Body(..., min_items=1, max_items=100),
+    category: str = Body(..., min_length=1, max_length=255),
+    current_user: dict = Depends(get_current_user)
+):
+    session = DB.get_session()
+    try:
+        from core.models.feed import Feed
+
+        mps = session.query(Feed).filter(Feed.id.in_(mp_ids)).all()
+
+        if not mps:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_response(
+                    code=40401,
+                    message="未找到任何公众号"
+                )
+            )
+
+        updated_count = 0
+        for mp in mps:
+            mp.category = category
+            mp.updated_at = datetime.now()
+            updated_count += 1
+
+        session.commit()
+
+        return success_response({
+            "updated_count": updated_count
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        print(f"批量更新分类错误: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response(
+                code=50001,
+                message="批量更新分类失败"
+            )
+        )
+    finally:
+        session.close()
+

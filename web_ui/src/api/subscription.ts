@@ -1,19 +1,18 @@
 import http from './http'
+import { Message } from '@arco-design/web-vue'
 
 export interface Subscription {
   id: string
-  mp_id: string
-  name: string
   mp_name: string
   mp_cover: string
   mp_intro: string
   status: number
-  sync_time: string
-  rss_url: string
-  article_count: number
   cache_images: boolean
   remarks: string
   category: string
+  created_at: string
+  // Optional fields that may be added by the frontend
+  sync_time?: string
 }
 
 export interface SubscriptionListResult {
@@ -108,4 +107,19 @@ export const searchMps = (kw: string, params: { page?: number; pageSize?: number
 
 export const getCategories = () => {
   return http.get<{code: number, data: { categories: string[] }}>('/wx/mps/categories')
+}
+
+export interface BatchUpdateCategoryParams {
+  mp_ids: string[]
+  category: string
+}
+
+export const batchUpdateCategory = async (params: BatchUpdateCategoryParams) => {
+  try {
+    const response = await http.put<{code: number, data: {updated_count: number}, message: string}>('/wx/mps/batch-category', params)
+    return response.data
+  } catch (error: any) {
+    Message.error(error.message || '批量更新分类失败')
+    throw error
+  }
 }
