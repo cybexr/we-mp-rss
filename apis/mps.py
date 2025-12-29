@@ -141,9 +141,9 @@ async def get_categories(
 @router.get("/update/{mp_id}", summary="更新公众号文章")
 async def update_mps(
      mp_id: str,
+     background_tasks: BackgroundTasks,
      start_page: int = 0,
      end_page: int = 1,
-    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
     session = DB.get_session()

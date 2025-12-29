@@ -83,13 +83,26 @@ def start_sync_content():
         print_warning("自动检查并同步文章内容功能未启用")
         return
     interval=int(cfg.get("gather.content_auto_interval",10)) # 每隔多少分钟
-    cron_exp=f"*/{interval} * * * *"
+
+    # Convert to hours if interval > 59 minutes (Cron minute field only accepts 0-59)
+    if interval > 59:
+        hours = interval // 60
+        if hours > 23:
+            print_warning(f"间隔时间{interval}分钟超过24小时,已调整为24小时")
+            hours = 23
+            cron_exp = "0 */23 * * *"  # Every 23 hours
+        else:
+            cron_exp = f"0 */{hours} * * *"  # Every N hours at minute 0
+        print_success(f"间隔{interval}分钟已转换为{hours}小时")
+    else:
+        cron_exp = f"*/{interval} * * * *"  # Every N minutes
+
     task_queue.clear_queue()
     scheduler.clear_all_jobs()
     def do_sync():
         task_queue.add_task(fetch_articles_without_content)
     job_id=scheduler.add_cron_job(do_sync,cron_expr=cron_exp)
-    print_success(f"已添自动同步文章内容任务: {job_id}")
+    print_success(f"已添自动同步文章内容任务: {job_id}, cron表达式: {cron_exp}")
     scheduler.start()
 if __name__ == "__main__":
     fetch_articles_without_content()
