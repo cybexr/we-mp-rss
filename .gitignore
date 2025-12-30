@@ -4,6 +4,9 @@ CLAUDE.md
 .workflow/
 .claude-trace/
 
+#web_ui github workflow need this 
+#static
+
 #
 __pycache__
 *.xml

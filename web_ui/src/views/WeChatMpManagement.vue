@@ -49,7 +49,7 @@
             <a-space>
               <a-image
                 v-if="record.mp_cover"
-                :src="record.mp_cover"
+                :src="getAvatarUrl(record.mp_cover)"
                 width="32"
                 height="32"
                 fit="cover"
@@ -106,7 +106,7 @@
                 <template #avatar>
                   <a-image
                     v-if="item.mp_cover"
-                    :src="item.mp_cover"
+                    :src="getAvatarUrl(item.mp_cover)"
                     width="60"
                     height="60"
                     fit="cover"
@@ -225,6 +225,7 @@
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getCategories, batchUpdateCategory } from '@/api/subscription'
 import { getToken } from '@/utils/auth'
+import { Avatar } from '@/utils/constants'
 import { Message, Modal } from '@arco-design/web-vue'
 
 const headers = { Authorization: `Bearer ${getToken()}` }
@@ -391,6 +392,10 @@ const fetchCategories = async () => {
   } catch (error) {
     console.error('获取分类列表错误:', error)
   }
+}
+
+const getAvatarUrl = (url: string) => {
+  return Avatar(url)
 }
 
 const showBatchCategoryModal = () => {
