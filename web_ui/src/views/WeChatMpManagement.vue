@@ -59,7 +59,7 @@
               <a-button
                 size="mini"
                 status="danger"
-                @click="deleteMp(record.mp_id)"
+                @click="deleteMp(record.id)"
               >
                 删除
               </a-button>
@@ -103,7 +103,7 @@
                     <a-button
                       size="mini"
                       status="danger"
-                      @click="deleteMp(item.mp_id)"
+                      @click="deleteMp(item.id)"
                     >
                       删除
                     </a-button>
@@ -354,6 +354,7 @@ const showAddModal = () => {
 
 const editMp = (record) => {
   modalTitle.value = '编辑公众号'
+  currentEditId.value = record.id
   Object.assign(form, record)
   visible.value = true
 }
@@ -364,7 +365,7 @@ const handleOk = async () => {
       await addSubscription(form)
       Message.success('添加成功')
     } else {
-      await updateSubscription(form.mp_id, form)
+      await updateSubscription(currentEditId.value, form)
       Message.success('更新成功')
     }
     visible.value = false
@@ -396,7 +397,7 @@ const handlePageChange = (page) => {
 }
 
 const openInlineEdit = (record) => {
-  currentEditId.value = record.mp_id
+  currentEditId.value = record.id
   Object.assign(inlineEditForm, {
     category: record.category || '',
     remarks: record.remarks || ''
