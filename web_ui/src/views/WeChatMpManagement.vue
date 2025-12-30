@@ -37,10 +37,34 @@
           :data="mpList"
           :pagination="pagination"
           :loading="loading"
-          row-key="mp_id"
+          :row-selection="{
+            type: 'checkbox',
+            showCheckedAll: true
+          }"
+          row-key="id"
           v-model:selectedKeys="selectedRowKeys"
           @page-change="handlePageChange"
         >
+          <template #mp_name="{ record }">
+            <a-space>
+              <a-image
+                v-if="record.mp_cover"
+                :src="record.mp_cover"
+                width="32"
+                height="32"
+                fit="cover"
+                style="border-radius: 4px;"
+              />
+              <a-avatar
+                v-else
+                style="background-color: #165dff; min-width: 32px;"
+              >
+                {{ record.mp_name?.charAt(0) || '?' }}
+              </a-avatar>
+              <span>{{ record.mp_name }}</span>
+            </a-space>
+          </template>
+
           <template #status="{ record }">
             <a-tag :color="record.status ? 'green' : 'red'">
               {{ record.status ? '已启用' : '已禁用' }}
@@ -54,7 +78,6 @@
 
           <template #action="{ record }">
             <a-space>
-              <a-button size="mini" @click="openInlineEdit(record)">快速编辑</a-button>
               <a-button size="mini" @click="editMp(record)">编辑</a-button>
               <a-button
                 size="mini"
@@ -98,7 +121,6 @@
                     {{ item.status ? '已启用' : '已禁用' }}
                   </a-tag>
                   <a-space :size="4">
-                    <a-button size="mini" @click="openInlineEdit(item)">快速编辑</a-button>
                     <a-button size="mini" @click="editMp(item)">编辑</a-button>
                     <a-button
                       size="mini"
@@ -141,10 +163,10 @@
     >
       <a-form :model="form">
         <a-form-item label="公众号ID" field="mp_id">
-          <a-input v-model="form.mp_id" />
+          <a-input v-model="form.mp_id" :disabled="modalTitle === '编辑公众号'" />
         </a-form-item>
         <a-form-item label="公众号名称" field="mp_name">
-          <a-input v-model="form.mp_name" />
+          <a-input v-model="form.mp_name" :disabled="modalTitle === '编辑公众号'" />
         </a-form-item>
         <a-form-item label="封面图" field="mp_cover">
           <a-upload
@@ -154,7 +176,7 @@
           />
         </a-form-item>
         <a-form-item label="简介" field="mp_intro">
-          <a-textarea v-model="form.mp_intro" />
+          <a-textarea v-model="form.mp_intro" :disabled="modalTitle === '编辑公众号'" />
         </a-form-item>
         <a-form-item label="状态" field="status">
           <a-switch v-model="form.status" />
@@ -170,31 +192,6 @@
             v-model="form.category"
             :data="categories"
             placeholder="选择或输入分类"
-            :max-length="255"
-          />
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <a-modal
-      v-model:visible="inlineEditModalVisible"
-      title="快速编辑"
-      @ok="handleInlineEditSave"
-      @cancel="handleInlineEditCancel"
-    >
-      <a-form :model="inlineEditForm">
-        <a-form-item label="分类" field="category">
-          <a-auto-complete
-            v-model="inlineEditForm.category"
-            :data="categories"
-            placeholder="选择或输入分类"
-            :max-length="255"
-          />
-        </a-form-item>
-        <a-form-item label="备注" field="remarks">
-          <a-textarea
-            v-model="inlineEditForm.remarks"
-            placeholder="添加备注..."
             :max-length="255"
           />
         </a-form-item>
@@ -237,15 +234,7 @@ const handleResize = () => {
   isMobile.value = window.innerWidth < 768
 }
 
-const columns = [
-  { title: '公众号ID', dataIndex: 'mp_id' },
-  { title: '名称', dataIndex: 'mp_name' },
-  { title: '分类', slotName: 'category' },
-  { title: '备注', dataIndex: 'remarks', ellipsis: true, tooltip: true },
-  { title: '状态', slotName: 'status' },
-  { title: '最后同步', dataIndex: 'sync_time' },
-  { title: '操作', slotName: 'action' }
-]
+const columns = [    {      title: "名称",      dataIndex: "mp_name",      slotName: "mp_name"    },    { title: "分类", slotName: "category" },    { title: "备注", dataIndex: "remarks", ellipsis: true, tooltip: true },    { title: "状态", slotName: "status" },    { title: "操作", slotName: "action" }  ]
 
 const mpList = ref([])
 const loading = ref(false)
@@ -276,11 +265,6 @@ const form = reactive({
   cache_images: false,
   remarks: '',
   category: ''
-})
-
-const inlineEditForm = reactive({
-  category: '',
-  remarks: ''
 })
 
 const loadData = async (kw = '', category = '', isLoadMore = false) => {
@@ -394,34 +378,6 @@ const deleteMp = async (id) => {
 const handlePageChange = (page) => {
   pagination.current = page
   loadData(searchText.value, selectedCategory.value)
-}
-
-const openInlineEdit = (record) => {
-  currentEditId.value = record.id
-  Object.assign(inlineEditForm, {
-    category: record.category || '',
-    remarks: record.remarks || ''
-  })
-  inlineEditModalVisible.value = true
-}
-
-const handleInlineEditSave = async () => {
-  try {
-    const res = await updateSubscription(currentEditId.value, inlineEditForm)
-    Message.success('更新成功')
-    inlineEditModalVisible.value = false
-    loadData(searchText.value, selectedCategory.value)
-  } catch (error) {
-    console.error('更新错误:', error)
-    Message.error(error.message || '更新失败')
-  }
-}
-
-const handleInlineEditCancel = () => {
-  Object.keys(inlineEditForm).forEach(key => {
-    inlineEditForm[key] = ''
-  })
-  inlineEditModalVisible.value = false
 }
 
 const handleUploadSuccess = (file) => {
