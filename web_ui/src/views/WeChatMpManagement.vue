@@ -206,15 +206,12 @@
     >
       <a-form :model="{ batchCategory }">
         <a-form-item label="选择分类" field="category">
-          <a-select
+          <a-auto-complete
             v-model="batchCategory"
-            placeholder="请选择分类"
-            allow-clear
-          >
-            <a-option v-for="category in categories" :key="category" :value="category">
-              {{ category }}
-            </a-option>
-          </a-select>
+            :data="categories"
+            placeholder="选择或输入分类"
+            :max-length="255"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -341,6 +338,7 @@ const editMp = (record) => {
   modalTitle.value = '编辑公众号'
   currentEditId.value = record.id
   Object.assign(form, record)
+  fetchCategories() // 打开编辑弹框时刷新分类列表
   visible.value = true
 }
 
@@ -354,6 +352,7 @@ const handleOk = async () => {
       Message.success('更新成功')
     }
     visible.value = false
+    fetchCategories() // 刷新分类列表
     loadData(searchText.value, selectedCategory.value)
   } catch (error) {
     console.error('操作失败:', error)
@@ -400,6 +399,7 @@ const getAvatarUrl = (url: string) => {
 
 const showBatchCategoryModal = () => {
   batchCategory.value = ''
+  fetchCategories() // 打开弹框时刷新分类列表
   batchCategoryModalVisible.value = true
 }
 
@@ -423,6 +423,7 @@ const handleBatchCategoryOk = () => {
         Message.success(`成功更新 ${res.updated_count} 个公众号的分类`)
         selectedRowKeys.value = []
         batchCategoryModalVisible.value = false
+        fetchCategories() // 刷新分类列表
         loadData(searchText.value, selectedCategory.value)
       } catch (error) {
         console.error('批量更新分类错误:', error)
