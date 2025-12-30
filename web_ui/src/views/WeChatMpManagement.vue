@@ -170,6 +170,12 @@
             v-model="form.category"
             :data="categories"
             placeholder="选择或输入分类"
+            :max-length="255"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
     <a-modal
       v-model:visible="inlineEditModalVisible"
       title="快速编辑"
@@ -189,11 +195,6 @@
           <a-textarea
             v-model="inlineEditForm.remarks"
             placeholder="添加备注..."
-            :max-length="255"
-          />
-        </a-form-item>
-      </a-form>
-    </a-modal>
             :max-length="255"
           />
         </a-form-item>
@@ -428,7 +429,6 @@ const handleInlineEditCancel = () => {
     inlineEditForm[key] = ''
   })
   inlineEditModalVisible.value = false
-}
 }
 
 const handleUploadSuccess = (file) => {
