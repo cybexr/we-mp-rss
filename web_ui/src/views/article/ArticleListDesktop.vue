@@ -23,13 +23,28 @@
           </template>
           <div style="display: flex; flex-direction: column;; background: #fff">
             <div style="margin-bottom: 12px;">
-              <a-input-search 
-                v-model="mpSearchText" 
-                placeholder="搜索公众号名称" 
-                @search="handleMpSearch" 
+              <a-input-search
+                v-model="mpSearchText"
+                placeholder="搜索公众号名称"
+                @search="handleMpSearch"
                 @keyup.enter="handleMpSearch"
-                allow-clear 
+                allow-clear
                 size="small" />
+            </div>
+            <div style="margin-bottom: 12px;">
+              <a-select
+                v-model="selectedMpCategory"
+                placeholder="选择分类"
+                allow-clear
+                size="small"
+                style="width: 100%;"
+                @change="handleMpCategoryChange"
+              >
+                <a-option value="">全部分类</a-option>
+                <a-option v-for="category in categories" :key="category" :value="category">
+                  {{ category }}
+                </a-option>
+              </a-select>
             </div>
             <a-list :data="mpList" :loading="mpLoading" bordered>
               <template #item="{ item, index }">
@@ -210,7 +225,7 @@ import { IconApps, IconAtt, IconDelete, IconEdit, IconEye, IconRefresh, IconScan
 import { getArticles, deleteArticle as deleteArticleApi, ClearArticle, ClearDuplicateArticle, getArticleDetail, toggleArticleReadStatus } from '@/api/article'
 import { ExportOPML, ExportMPS, ImportMPS } from '@/api/export'
 import ExportModal from '@/components/ExportModal.vue'
-import { getSubscriptions, UpdateMps } from '@/api/subscription'
+import { getSubscriptions, UpdateMps, getCategories } from '@/api/subscription'
 import { inject } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { formatDateTime, formatTimestamp } from '@/utils/date'
@@ -238,6 +253,8 @@ const mpPagination = ref({
 const searchText = ref('')
 const filterStatus = ref('')
 const mpSearchText = ref('')
+const selectedMpCategory = ref('')
+const categories = ref<string[]>([])
 
 const pagination = ref({
   current: 1,
@@ -348,6 +365,20 @@ const handleMpPageChange = (page: number, pageSize: number) => {
 const handleMpSearch = () => {
   mpPagination.value.current = 1
   fetchMpList()
+}
+
+const handleMpCategoryChange = () => {
+  mpPagination.value.current = 1
+  fetchMpList()
+}
+
+const fetchCategories = async () => {
+  try {
+    const res = await getCategories()
+    categories.value = res.categories || []
+  } catch (error) {
+    console.error('获取分类列表错误:', error)
+  }
 }
 const rssFormat = ref('atom')
 const activeFeed = ref({
@@ -671,6 +702,7 @@ const handleExportShow = async () => {
 onMounted(() => {
   console.log('组件挂载，开始获取数据')
   initIssourceUrl() // 初始化 issourceUrl 值
+  fetchCategories() // 获取分类列表
   fetchMpList().then(() => {
     console.log('公众号列表获取完成')
     fetchArticles()
@@ -682,11 +714,17 @@ onMounted(() => {
 const fetchMpList = async () => {
   mpLoading.value = true
   try {
-    const res = await getSubscriptions({
+    const params: any = {
       page: mpPagination.value.current - 1,
-      pageSize: mpPagination.value.pageSize,
-      kw: mpSearchText.value
-    })
+      pageSize: mpPagination.value.pageSize
+    }
+    if (mpSearchText.value) {
+      params.kw = mpSearchText.value
+    }
+    if (selectedMpCategory.value) {
+      params.category = selectedMpCategory.value
+    }
+    const res = await getSubscriptions(params)
 
     mpList.value = res.list.map(item => ({
       id: item.id || item.mp_id,
