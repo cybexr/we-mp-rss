@@ -11,6 +11,12 @@
         </template>
         订阅管理
       </a-menu-item>
+      <a-menu-item key="/wechat/mp">
+        <template #icon>
+          <icon-user-group />
+        </template>
+        公众号管理
+      </a-menu-item>
       <a-menu-item key="/export/records">
         <template #icon>
           <icon-export />

@@ -46,9 +46,8 @@ const routes = [
         path: 'wechat/mp',
         name: 'WeChatMpManagement',
         component: WeChatMpManagement,
-        meta: { 
-          requiresAuth: true,
-          permissions: ['wechat:manage'] 
+        meta: {
+          requiresAuth: true
         }
       },
       
