@@ -1,5 +1,4 @@
 import http from './http'
-import { Message } from '@arco-design/web-vue'
 
 export interface Subscription {
   id: string
@@ -114,12 +113,6 @@ export interface BatchUpdateCategoryParams {
   category: string
 }
 
-export const batchUpdateCategory = async (params: BatchUpdateCategoryParams) => {
-  try {
-    const response = await http.put<{code: number, data: {updated_count: number}, message: string}>('/wx/mps/batch-category', params)
-    return response.data
-  } catch (error: any) {
-    Message.error(error.message || '批量更新分类失败')
-    throw error
-  }
+export const batchUpdateCategory = (params: BatchUpdateCategoryParams) => {
+  return http.put<{updated_count: number}>('/wx/mps/batch-category', params)
 }

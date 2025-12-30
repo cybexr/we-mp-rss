@@ -303,16 +303,12 @@ const loadData = async (kw = '', category = '', isLoadMore = false) => {
     }
     const res = await getSubscriptions(params)
 
-    if (res.code === 0) {
-      if (isLoadMore) {
-        mpList.value = [...mpList.value, ...(res.data.list || [])]
-      } else {
-        mpList.value = res.data.list || []
-      }
-      pagination.total = res.data.total || 0
+    if (isLoadMore) {
+      mpList.value = [...mpList.value, ...(res.list || [])]
     } else {
-      throw new Error(res.message || '获取公众号列表失败')
+      mpList.value = res.list || []
     }
+    pagination.total = res.total || 0
   } catch (error) {
     console.error('获取公众号列表错误:', error)
     Message.error(error.message)
@@ -411,13 +407,9 @@ const openInlineEdit = (record) => {
 const handleInlineEditSave = async () => {
   try {
     const res = await updateSubscription(currentEditId.value, inlineEditForm)
-    if (res.code === 0) {
-      Message.success('更新成功')
-      inlineEditModalVisible.value = false
-      loadData(searchText.value, selectedCategory.value)
-    } else {
-      throw new Error(res.message || '更新失败')
-    }
+    Message.success('更新成功')
+    inlineEditModalVisible.value = false
+    loadData(searchText.value, selectedCategory.value)
   } catch (error) {
     console.error('更新错误:', error)
     Message.error(error.message || '更新失败')
@@ -438,9 +430,7 @@ const handleUploadSuccess = (file) => {
 const fetchCategories = async () => {
   try {
     const res = await getCategories()
-    if (res.code === 0) {
-      categories.value = res.data.categories || []
-    }
+    categories.value = res.categories || []
   } catch (error) {
     console.error('获取分类列表错误:', error)
   }
@@ -468,14 +458,10 @@ const handleBatchCategoryOk = () => {
           mp_ids: selectedRowKeys.value,
           category: batchCategory.value
         })
-        if (res.code === 0) {
-          Message.success(`成功更新 ${res.data.updated_count} 个公众号的分类`)
-          selectedRowKeys.value = []
-          batchCategoryModalVisible.value = false
-          loadData(searchText.value, selectedCategory.value)
-        } else {
-          throw new Error(res.message || '批量更新失败')
-        }
+        Message.success(`成功更新 ${res.updated_count} 个公众号的分类`)
+        selectedRowKeys.value = []
+        batchCategoryModalVisible.value = false
+        loadData(searchText.value, selectedCategory.value)
       } catch (error) {
         console.error('批量更新分类错误:', error)
         Message.error(error.message || '批量更新失败')
