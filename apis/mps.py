@@ -476,23 +476,48 @@ async def batch_update_category(
     session = DB.get_session()
     try:
         from core.models.feed import Feed
+        from sqlalchemy import or_
 
         # 添加调试日志
-        print(f"[DEBUG] 批量更新分类 - mp_ids: {mp_ids}")
+        print(f"[DEBUG] 批量更新分类 - 接收到的 mp_ids: {mp_ids}")
         print(f"[DEBUG] 批量更新分类 - category: {category}")
 
+        # 先尝试用 id 查询
         mps = session.query(Feed).filter(Feed.id.in_(mp_ids)).all()
+        print(f"[DEBUG] 通过 id 查询到 {len(mps)} 条记录")
 
-        print(f"[DEBUG] 查询到的记录数: {len(mps)}")
+        # 如果没找到，尝试用 faker_id 查询
+        if not mps or len(mps) < len(mp_ids):
+            mps_by_faker = session.query(Feed).filter(Feed.faker_id.in_(mp_ids)).all()
+            print(f"[DEBUG] 通过 faker_id 查询到 {len(mps_by_faker)} 条记录")
+
+            # 合并结果，去重
+            all_mps = mps + mps_by_faker
+            seen_ids = set()
+            mps = []
+            for mp in all_mps:
+                if mp.id not in seen_ids:
+                    seen_ids.add(mp.id)
+                    mps.append(mp)
+
+            print(f"[DEBUG] 合并后共 {len(mps)} 条唯一记录")
+
         if mps:
-            print(f"[DEBUG] 查询到的记录IDs: {[mp.id for mp in mps]}")
+            print(f"[DEBUG] 最终查询到的记录IDs: {[mp.id for mp in mps]}")
+            print(f"[DEBUG] 最终查询到的记录faker_ids: {[mp.faker_id for mp in mps]}")
 
         if not mps:
+            # 列出数据库中所有 feeds 的 id 和 faker_id 供调试
+            all_feeds = session.query(Feed.id, Feed.faker_id, Feed.mp_name).limit(10).all()
+            print(f"[DEBUG] 数据库中前10条记录:")
+            for feed in all_feeds:
+                print(f"  id={feed[0]}, faker_id={feed[1]}, mp_name={feed[2]}")
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=error_response(
                     code=40401,
-                    message="公众号不存在"
+                    message=f"公众号不存在，请检查选中的公众号是否存在。未找到以下ID: {mp_ids}"
                 )
             )
 
