@@ -477,14 +477,22 @@ async def batch_update_category(
     try:
         from core.models.feed import Feed
 
+        # 添加调试日志
+        print(f"[DEBUG] 批量更新分类 - mp_ids: {mp_ids}")
+        print(f"[DEBUG] 批量更新分类 - category: {category}")
+
         mps = session.query(Feed).filter(Feed.id.in_(mp_ids)).all()
+
+        print(f"[DEBUG] 查询到的记录数: {len(mps)}")
+        if mps:
+            print(f"[DEBUG] 查询到的记录IDs: {[mp.id for mp in mps]}")
 
         if not mps:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=error_response(
                     code=40401,
-                    message="未找到任何公众号"
+                    message="公众号不存在"
                 )
             )
 
