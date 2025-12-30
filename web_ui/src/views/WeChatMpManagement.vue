@@ -78,6 +78,7 @@
 
           <template #action="{ record }">
             <a-space>
+              <a-button size="mini" @click="showArticles(record)">文章列表</a-button>
               <a-button size="mini" @click="editMp(record)">编辑</a-button>
               <a-button
                 size="mini"
@@ -121,6 +122,7 @@
                     {{ item.status ? '已启用' : '已禁用' }}
                   </a-tag>
                   <a-space :size="4">
+                    <a-button size="mini" @click="showArticles(item)">文章列表</a-button>
                     <a-button size="mini" @click="editMp(item)">编辑</a-button>
                     <a-button
                       size="mini"
@@ -215,12 +217,44 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-modal
+      v-model:visible="articleModalVisible"
+      :title="`${currentMpName} - 文章列表`"
+      :width="1000"
+      :footer="false"
+      @cancel="articleModalVisible = false"
+    >
+      <a-table
+        :columns="articleColumns"
+        :data="articles"
+        :loading="articlesLoading"
+        :pagination="{
+          current: articlePagination.current,
+          pageSize: articlePagination.pageSize,
+          total: articlePagination.total,
+          showTotal: true,
+          showJumper: true,
+          showPageSize: true
+        }"
+        row-key="id"
+        @page-change="handleArticlePageChange"
+      >
+        <template #publish_time="{ record }">
+          {{ record.publish_time ? new Date(record.publish_time * 1000).toLocaleString('zh-CN') : '-' }}
+        </template>
+        <template #created_at="{ record }">
+          {{ record.created_at ? new Date(record.created_at).toLocaleString('zh-CN') : '-' }}
+        </template>
+      </a-table>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getCategories, batchUpdateCategory } from '@/api/subscription'
+import { getArticles } from '@/api/article'
 import { getToken } from '@/utils/auth'
 import { Avatar } from '@/utils/constants'
 import { Message, Modal } from '@arco-design/web-vue'
@@ -253,6 +287,18 @@ const categories = ref<string[]>([])
 const selectedRowKeys = ref<string[]>([])
 const batchCategoryModalVisible = ref(false)
 const batchCategory = ref('')
+
+// 文章列表相关状态
+const articleModalVisible = ref(false)
+const currentMpId = ref('')
+const currentMpName = ref('')
+const articles = ref([])
+const articlesLoading = ref(false)
+const articlePagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0
+})
 
 const form = reactive({
   mp_id: '',
@@ -395,6 +441,61 @@ const fetchCategories = async () => {
 
 const getAvatarUrl = (url: string) => {
   return Avatar(url)
+}
+
+// 文章列表列定义
+const articleColumns = [
+  {
+    title: '文章标题',
+    dataIndex: 'title',
+    ellipsis: true,
+    tooltip: true
+  },
+  {
+    title: '发布时间',
+    dataIndex: 'publish_time',
+    width: 160
+  },
+  {
+    title: '更新时间',
+    dataIndex: 'created_at',
+    width: 160
+  }
+]
+
+// 获取文章列表
+const fetchArticles = async () => {
+  try {
+    articlesLoading.value = true
+    const params = {
+      page: articlePagination.current - 1,
+      pageSize: articlePagination.pageSize,
+      mp_id: currentMpId.value
+    }
+    const res = await getArticles(params)
+    articles.value = res.list || []
+    articlePagination.total = res.total || 0
+  } catch (error) {
+    console.error('获取文章列表错误:', error)
+    Message.error('获取文章列表失败')
+  } finally {
+    articlesLoading.value = false
+  }
+}
+
+// 显示文章列表
+const showArticles = (record) => {
+  currentMpId.value = record.id
+  currentMpName.value = record.mp_name
+  articlePagination.current = 1
+  articleModalVisible.value = true
+  fetchArticles()
+}
+
+// 文章列表分页变化
+const handleArticlePageChange = (page) => {
+  articlePagination.current = page
+  fetchArticles()
 }
 
 const showBatchCategoryModal = () => {
