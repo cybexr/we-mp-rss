@@ -4,8 +4,9 @@ CLAUDE.md
 .workflow/
 .claude-trace/
 
-#web_ui github workflow need this 
-#static
+#web_ui github workflow need this
+#static - REMOVED: Now building in Dockerfile, don't commit built assets
+static/
 
 #
 __pycache__

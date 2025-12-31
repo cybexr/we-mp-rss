@@ -23,6 +23,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     wget \
     git \
+    curl \
+    # Node.js (用于构建前端)
+    nodejs \
+    npm \
     # Python编译依赖
     build-essential \
     zlib1g-dev \
@@ -49,6 +53,9 @@ RUN playwright install-deps chromium firefox webkit
 
 # 复制应用代码
 COPY . .
+
+# 构建前端
+RUN cd web_ui && npm install && npm run build && cd ..
 
 # 设置配置文件(如果不存在)
 COPY config.example.yaml ./config.yaml
