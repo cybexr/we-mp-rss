@@ -3,37 +3,49 @@ import core.db as db
 from core.wait import Wait
 from core.wx.base import WxGather
 from time import sleep
-from core.print import print_success,print_error
+from core.print import print_success,print_error,print_warning
 import random
-from driver.wxarticle import Web
 DB=db.Db(tag="内容修正")
 def fetch_articles_without_content():
     """
     查询content为空的文章，调用微信内容提取方法获取内容并更新数据库
     """
+    from driver.browser_manager import BrowserManager
+
     session = DB.get_session()
     ga=WxGather().Model()
+    browser_manager = None
+
     try:
         # 查询content为空的文章
         from sqlalchemy import or_
         articles = session.query(Article).filter(or_(Article.content.is_(None), Article.content == "")).limit(10).all()
-        
+
         if not articles:
             print_warning("暂无需要获取内容的文章")
             return
-        
+
+        # 初始化BrowserManager，批量处理10个文章
+        browser_manager = BrowserManager(
+            max_articles_per_browser=7,
+            max_retries=3,
+            min_delay=2.0,
+            max_delay=5.0
+        )
+
         for article in articles:
             # 构建URL
             if article.url:
                 url = article.url
             else:
                 url = f"https://mp.weixin.qq.com/s/{article.id}"
-            
+
             print(f"正在处理文章: {article.title}, URL: {url}")
-            
+
             # 获取内容
             if cfg.get("gather.content_mode","web"):
-                content=Web.get_article_content(url).get("content")
+                article_data = browser_manager.fetch_article(url, mobile_mode=False)
+                content = article_data.get("content")
             else:
                 content = ga.content_extract(url)
             if content:
@@ -46,11 +58,13 @@ def fetch_articles_without_content():
                 print_success(f"成功更新文章 {article.title} 的内容")
             else:
                 print_error(f"获取文章 {article.title} 内容失败")
-            Wait(min=5,max=10,tips=f"修正 {article.title}... 完成")   
+            Wait(min=5,max=10,tips=f"修正 {article.title}... 完成")
     except Exception as e:
         print(f"处理过程中发生错误: {e}")
     finally:
-        Web.Close()
+        # 清理浏览器资源
+        if browser_manager:
+            browser_manager.cleanup()
 from core.task import TaskScheduler
 from core.queue import TaskQueueManager
 scheduler=TaskScheduler()

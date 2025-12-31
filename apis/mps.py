@@ -15,7 +15,6 @@ from core.res import save_avatar_locally
 import io
 import os
 from jobs.article import UpdateArticle
-from driver.wxarticle import WXArticleFetcher
 router = APIRouter(prefix=f"/mps", tags=["公众号管理"])
 
 # Database session dependency
@@ -232,7 +231,11 @@ async def get_mp_by_article(
     current_user: dict = Depends(get_current_user)
 ):
     try:
-        info =await WXArticleFetcher().async_get_article_content(url)
+        # 使用BrowserManager进行浏览器复用和重试
+        from driver.browser_manager import BrowserManager
+
+        with BrowserManager(max_articles_per_browser=1, max_retries=3) as browser_mgr:
+            info = browser_mgr.fetch_article(url, mobile_mode=False)
 
         if not info:
             raise HTTPException(

@@ -1,6 +1,5 @@
 import random
 from socket import timeout
-from .playwright_driver import PlaywrightController
 from typing import Dict
 from core.print import print_error,print_info,print_success,print_warning
 import time
@@ -11,22 +10,29 @@ from bs4 import BeautifulSoup
 import os
 from datetime import datetime
 from core.config import cfg
+from playwright.sync_api import Page
 
 class WXArticleFetcher:
     """微信公众号文章获取器
-    
+
     基于WX_API登录状态获取文章内容
-    
+
     Attributes:
         wait_timeout: 显式等待超时时间(秒)
+        page: Playwright Page对象 (依赖注入)
     """
-    
-    def __init__(self, wait_timeout: int = 10000):
-        """初始化文章获取器"""
+
+    def __init__(self, page=None, wait_timeout: int = 10000):
+        """初始化文章获取器
+
+        Args:
+            page: Playwright Page对象 (必需，通过依赖注入提供)
+            wait_timeout: 显式等待超时时间(秒)
+        """
+        if page is None:
+            raise ValueError("page参数不能为None，调用者必须提供Playwright Page对象")
+        self.page = page
         self.wait_timeout = wait_timeout
-        self.controller = PlaywrightController()
-        if not self.controller:
-            raise Exception("WebDriver未初始化或未登录")
     
     def convert_publish_time_to_timestamp(self, publish_time_str: str) -> int:
         """将发布时间字符串转换为时间戳
@@ -212,12 +218,10 @@ class WXArticleFetcher:
                     
             print_success(f"批量处理完成: 成功 {success_count}/{total_count}")
             return success_count > 0
-            
+
         except Exception as e:
             print_error(f"批量修复文章失败: {e}")
-            return False
-        finally:
-            self.Close() 
+            return False 
     async def async_get_article_content(self,url:str)->Dict:
         import asyncio
         from concurrent.futures import ThreadPoolExecutor
@@ -227,10 +231,10 @@ class WXArticleFetcher:
         return await future
     def get_article_content(self, url: str) -> Dict:
         """获取单篇文章详细内容
-        
+
         Args:
             url: 文章URL (如: https://mp.weixin.qq.com/s/qfe2F6Dcw-uPXW_XW7UAIg)
-            
+
         Returns:
             文章内容数据字典，包含:
             - title: 文章标题
@@ -238,7 +242,7 @@ class WXArticleFetcher:
             - publish_time: 发布时间
             - content: 正文HTML
             - images: 图片URL列表
-            
+
         Raises:
             Exception: 如果未登录或获取内容失败
         """
@@ -249,19 +253,17 @@ class WXArticleFetcher:
                 "content": "",
                 "images": "",
                 "mp_info":{
-                "mp_name":"",   
+                "mp_name":"",
                 "logo":"",
                 "biz": "",
                 }
             }
-        self.controller.start_browser()
-       
-        self.page = self.controller.page
+
         print_warning(f"Get:{url} Wait:{self.wait_timeout}")
-        self.controller.open_url(url)
+        self.page.goto(url)
         page = self.page
         content=""
-        
+
         try:
             # 等待页面加载
             # page.wait_for_load_state("networkidle")
@@ -274,7 +276,6 @@ class WXArticleFetcher:
                 # try:
                 #     page.locator("#js_verify").click()
                 # except:
-                self.controller.cleanup()
                 Wait(tips="当前环境异常，完成验证后即可继续访问")
                 raise Exception("当前环境异常，完成验证后即可继续访问")
             if "该内容已被发布者删除" in body or "The content has been deleted by the author." in body:
@@ -374,24 +375,9 @@ class WXArticleFetcher:
                 }
                 info["mp_id"]= "MP_WXS_"+base64.b64decode(info["mp_info"]["biz"]).decode("utf-8")
         except Exception as e:
-            print_error(f"获取公众号信息失败: {str(e)}")   
+            print_error(f"获取公众号信息失败: {str(e)}")
             pass
-        self.Close()
         return info
-    def Close(self):
-        """关闭浏览器"""
-        if hasattr(self, 'controller'):
-            self.controller.Close()
-        else:
-            print("WXArticleFetcher未初始化或已销毁")
-    def __del__(self):
-        """销毁文章获取器"""
-        try:
-            if hasattr(self, 'controller') and self.controller is not None:
-                self.controller.Close()
-        except Exception as e:
-            # 析构函数中避免抛出异常
-            pass
 
     def export_to_pdf(self, title=None):
         """将文章内容导出为 PDF 文件
@@ -495,4 +481,3 @@ class WXArticleFetcher:
    
 
 
-Web=WXArticleFetcher()

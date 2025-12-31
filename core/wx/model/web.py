@@ -6,23 +6,67 @@ import yaml
 import re
 from bs4 import BeautifulSoup
 from core.wx.base import WxGather
-from core.print import print_error
+from core.print import print_error, print_info, print_warning
 from core.log import logger
+
 # 继承 BaseGather 类
 class MpsWeb(WxGather):
+    """Web模式采集 - 使用BrowserManager进行浏览器复用和重试"""
+
+    def __init__(self):
+        super().__init__()
+        self.browser_manager = None
+
+    def _get_browser_manager(self):
+        """获取或创建BrowserManager实例"""
+        if self.browser_manager is None:
+            from driver.browser_manager import BrowserManager
+            # 配置：每7个文章重启一次浏览器，最多重试3次，延迟2-5秒
+            self.browser_manager = BrowserManager(
+                max_articles_per_browser=7,
+                max_retries=3,
+                min_delay=2.0,
+                max_delay=5.0
+            )
+        return self.browser_manager
 
     # 重写 content_extract 方法
     def content_extract(self,  url):
+        """提取文章内容，使用BrowserManager进行浏览器复用和重试"""
         try:
-            from driver.wxarticle import Web as App
-            r = App.get_article_content(url)
-            if r!=None:
-                text = r.get("content","")
-                text=self.remove_common_html_elements(text)
-                return  text
+            from driver.wxarticle import WXArticleFetcher
+
+            browser_manager = self._get_browser_manager()
+            print_info(f"Extracting content from: {url}")
+
+            # 使用BrowserManager获取文章内容
+            result = browser_manager.fetch_article(url, mobile_mode=False)
+
+            if result and result.get("content"):
+                text = result.get("content", "")
+                text = self.remove_common_html_elements(text)
+                return text
+            else:
+                print_warning(f"No content extracted from: {url}")
+                return ""
+
         except Exception as e:
-            logger.error(e)
+            logger.error(f"Content extraction failed for {url}: {e}")
+            print_error(f"Error extracting content: {e}")
         return ""
+
+    def cleanup(self):
+        """清理浏览器资源"""
+        if self.browser_manager:
+            self.browser_manager.cleanup()
+            self.browser_manager = None
+
+    def __del__(self):
+        """析构时清理资源"""
+        try:
+            self.cleanup()
+        except:
+            pass
     # 重写 get_Articles 方法
     def get_Articles(self, faker_id:str=None,Mps_id:str=None,Mps_title="",CallBack=None,start_page:int=0,MaxPage:int=1,interval=10,Gather_Content=False,Item_Over_CallBack=None,Over_CallBack=None):
         super().Start(mp_id=Mps_id)

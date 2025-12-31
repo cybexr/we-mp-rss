@@ -18,6 +18,9 @@ os.environ['PLAYWRIGHT_BROWSERS_PATH'] = browsers_path
 from playwright.sync_api import sync_playwright
 from playwright.async_api import async_playwright
 
+# 导入反爬虫配置
+from .anti_crawler_config import AntiCrawlerConfig
+
 class PlaywrightController:
     def __init__(self):
         self.system = platform.system().lower()
@@ -99,11 +102,11 @@ class PlaywrightController:
             context_options = {
                 "locale": language
             }
-            
-            # 反爬虫配置
+
+            # 反爬虫配置 - 使用AntiCrawlerConfig
             if anti_crawler:
-                context_options.update(self._get_anti_crawler_config(mobile_mode))
-            
+                context_options.update(AntiCrawlerConfig.get_anti_detection_config(mobile_mode))
+
             self.context = self.browser.new_context(**context_options)
             self.page = self.context.new_page()
             
@@ -158,85 +161,18 @@ class PlaywrightController:
     def add_cookie(self, cookie):
         self.add_cookies([cookie])
 
-
-    def _get_anti_crawler_config(self, mobile_mode=False):
-        """获取反爬虫配置"""
-        
-        # 生成随机指纹
-        fingerprint = self._generate_uuid()
-        
-        # 基础配置
-        config = {
-            "user_agent": self._get_realistic_user_agent(mobile_mode),
-            "viewport": {
-                "width": random.randint(1200, 1920) if not mobile_mode else 375,
-                "height": random.randint(800, 1080) if not mobile_mode else 812,
-                "device_scale_factor": random.choice([1, 1.25, 1.5, 2])
-            },
-            "extra_http_headers": {
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Cache-Control": "no-cache",
-                "Upgrade-Insecure-Requests": "1",
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "none",
-                "Sec-Fetch-User": "?1"
-            }
-        }
-        
-        # 移动端特殊配置
-        if mobile_mode:
-            config["extra_http_headers"].update({
-                "User-Agent": config["user_agent"],
-                "X-Requested-With": "com.tencent.mm"
-            })
-        
-        return config
-
-    def _get_realistic_user_agent(self, mobile_mode=False):
-        """获取更真实的User-Agent"""
-        print(f"浏览器特征设置完成: {'移动端' if mobile_mode else '桌面端'}")
-        if mobile_mode:
-            # 移动端User-Agent
-            mobile_agents = [
-                "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
-                "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36",
-                "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36",
-                "Mozilla/5.0 (Windows Phone 10.0; Android 6.0.1; Microsoft; Lumia 950) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Mobile Safari/537.36 Edge/14.14393"
-            ]
-            return random.choice(mobile_agents)
-        else:
-            # 桌面端User-Agent（更新版本）
-            desktop_agents = [
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0",
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            ]
-            return random.choice(desktop_agents)
-
-    def _generate_uuid(self):
-        """生成UUID指纹"""
-        return str(uuid.uuid4()).replace("-", "")
-
     def _apply_anti_crawler_scripts(self):
-        # try:
-        #     from playwright_stealth.stealth import Stealth
-        #     stealth = Stealth()
-        #     stealth.apply_stealth_sync(self.page)
-        # except ImportError:
-        #     print("检测到playwright_stealth未安装，正在自动安装...")
-        #     subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright_stealth"])
-        #     from playwright_stealth.stealth import Stealth
-        #     stealth = Stealth()
-        #     stealth.apply_stealth_sync(self.page)
-        
         """应用反爬虫脚本"""
+        try:
+            from playwright_stealth.stealth import Stealth
+            stealth = Stealth()
+            stealth.apply_stealth_sync(self.page)
+        except ImportError:
+            print("检测到playwright_stealth未安装，正在自动安装...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright_stealth"])
+            from playwright_stealth.stealth import Stealth
+            stealth = Stealth()
+            stealth.apply_stealth_sync(self.page)
         # 隐藏自动化特征
         self.page.add_init_script("""
         // 隐藏webdriver属性

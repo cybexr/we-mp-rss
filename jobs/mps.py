@@ -10,6 +10,7 @@ from core.config import cfg,DEBUG
 from core.print import print_info,print_success,print_error
 from driver.wx import WX_API
 from driver.success import Success
+from driver.browser_manager import BrowserManager
 wx_db=db.Db(tag="任务调度")
 def fetch_all_article():
     print("开始更新")

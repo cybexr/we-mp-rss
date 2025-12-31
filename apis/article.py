@@ -376,11 +376,12 @@ async def reextract_article(
         # 根据配置选择提取方法
         content = None
         if cfg.get("gather.content_mode", "web") == "web":
-            # 使用 Web 浏览器方式提取
-            from driver.wxarticle import Web
+            # 使用 Web 浏览器方式提取 - 使用BrowserManager
+            from driver.browser_manager import BrowserManager
             try:
-                article_data = Web.get_article_content(url)
-                content = article_data.get("content", "")
+                with BrowserManager(max_articles_per_browser=1, max_retries=3) as browser_mgr:
+                    article_data = browser_mgr.fetch_article(url, mobile_mode=False)
+                    content = article_data.get("content", "")
             except Exception as e:
                 print_error(f"Web方式提取内容失败: {str(e)}")
         else:
