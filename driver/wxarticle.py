@@ -460,9 +460,13 @@ class WXArticleFetcher:
             print_error(f"Proxy图片失败: {str(e)}")
         return content
    
-    def clean_article_content(self,html_content: str):
+    @staticmethod
+    def clean_article_content(html_content: str):
         from tools.html import htmltools
-        html_content=self.fix_images(html_content)
+        from core.config import cfg
+        # Create temporary instance for fix_images which needs self
+        temp_fetcher = WXArticleFetcher(page=None, callback=None)
+        html_content = temp_fetcher.fix_images(html_content)
         if not cfg.get("gather.clean_html",False):
             return html_content
         return htmltools.clean_html(str(html_content).strip(),

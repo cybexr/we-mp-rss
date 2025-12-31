@@ -9,7 +9,7 @@ from .cfg import cfg,wx_cfg
 from core.print import print_error,print_info, print_warning
 from core.rss import RSS
 from driver.success import setStatus
-from driver.wxarticle import Web
+from driver.wxarticle import WXArticleFetcher
 from core.wait import Wait
 import random
 # 定义一些常见的 User-Agent
@@ -271,7 +271,7 @@ class WxGather:
                 Wait(tips="当前环境异常，完成验证后即可继续访问")
                 html_content=""
         else:
-            html_content=Web.clean_article_content(html_content)
+            html_content=WXArticleFetcher.clean_article_content(html_content)
         return html_content
 
     # 更新公众号更新状态
