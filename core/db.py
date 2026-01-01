@@ -1,10 +1,11 @@
 from sqlalchemy import create_engine, Engine,Text,event
 from sqlalchemy.orm import sessionmaker, declarative_base,scoped_session
 from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from typing import Optional, List
 from .models import Feed, Article
 from .config import cfg
-from core.models.base import Base  
+from core.models.base import Base
 from core.print import print_warning,print_info,print_error,print_success
 # 声明基类
 # Base = declarative_base()
@@ -14,6 +15,8 @@ class Db:
     def __init__(self,tag:str="默认",User_In_Thread=True):
         self.Session= None
         self.engine = None
+        self.async_engine = None
+        self.async_session_factory = None
         self.User_In_Thread=User_In_Thread
         self.tag=tag
         print_success(f"[{tag}]连接初始化")
@@ -25,6 +28,12 @@ class Db:
         return self.engine
     def get_session_factory(self):
         return sessionmaker(bind=self.engine, autoflush=True, expire_on_commit=True, future=True)
+
+    def get_async_engine(self):
+        """Return the SQLAlchemy async engine for this database connection."""
+        if self.async_engine is None:
+            raise ValueError("Async database connection has not been initialized.")
+        return self.async_engine
     def init(self, con_str: str) -> None:
         """Initialize database connection and create tables"""
         try:
@@ -39,6 +48,7 @@ class Db:
                     except Exception as e:
                         pass
                     open(db_path, 'w').close()
+            # Initialize sync engine
             self.engine = create_engine(con_str,
                                      pool_size=2,          # 最小空闲连接数
                                      max_overflow=20,      # 允许的最大溢出连接数
@@ -51,6 +61,33 @@ class Db:
                                      connect_args={"check_same_thread": False} if con_str.startswith('sqlite:///') else {}
                                      )
             self.session_factory=self.get_session_factory()
+
+            # Initialize async engine
+            # Convert sqlite:/// to sqlite+aiosqlite:/// for async support
+            async_con_str = con_str
+            if con_str.startswith('sqlite:///'):
+                async_con_str = con_str.replace('sqlite:///', 'sqlite+aiosqlite:///')
+            elif con_str.startswith('mysql://'):
+                async_con_str = con_str.replace('mysql://', 'mysql+aiomysql://')
+            elif con_str.startswith('postgresql://'):
+                async_con_str = con_str.replace('postgresql://', 'postgresql+asyncpg://')
+
+            self.async_engine = create_async_engine(
+                async_con_str,
+                pool_size=2,
+                max_overflow=20,
+                pool_timeout=30,
+                echo=False,
+                pool_recycle=60,
+                connect_args={"check_same_thread": False} if async_con_str.startswith('sqlite+aiosqlite:///') else {}
+            )
+            self.async_session_factory = async_sessionmaker(
+                bind=self.async_engine,
+                class_=AsyncSession,
+                autoflush=False,
+                expire_on_commit=False,
+                future=True
+            )
         except Exception as e:
             print(f"Error creating database connection: {e}")
             raise
@@ -236,6 +273,18 @@ class Db:
             yield session
         finally:
             session.remove()
+
+    async def get_async_session(self):
+        """获取异步数据库会话"""
+        async with self.async_session_factory() as session:
+            yield session
+
+    def async_session_dependency(self):
+        """FastAPI异步依赖项，用于请求范围的异步会话管理"""
+        async def _get_session():
+            async with self.async_session_factory() as session:
+                yield session
+        return _get_session()
 
 # 全局数据库实例
 DB = Db(User_In_Thread=True)
