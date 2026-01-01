@@ -30,8 +30,8 @@ class MpsAppMsg(WxGather):
             )
         return self.browser_manager
 
-    # 重写 content_extract 方法
-    def content_extract(self,  url):
+    # 重写 content_extract 方法 - 异步版本
+    async def content_extract(self,  url):
         """提取文章内容，使用BrowserManager进行浏览器复用和重试"""
         try:
             from driver.wxarticle import WXArticleFetcher
@@ -39,8 +39,8 @@ class MpsAppMsg(WxGather):
             browser_manager = self._get_browser_manager()
             print_info(f"Extracting content from: {url}")
 
-            # 使用BrowserManager获取文章内容
-            result = browser_manager.fetch_article(url, mobile_mode=True)
+            # 使用BrowserManager获取文章内容 (异步)
+            result = await browser_manager.fetch_article(url, mobile_mode=True)
 
             if result and result.get("content"):
                 text = result.get("content", "")
@@ -55,10 +55,10 @@ class MpsAppMsg(WxGather):
             print_error(f"Error extracting content: {e}")
         return ""
 
-    def cleanup(self):
+    async def cleanup(self):
         """清理浏览器资源"""
         if self.browser_manager:
-            self.browser_manager.cleanup()
+            await self.browser_manager.cleanup()
             self.browser_manager = None
 
     def __del__(self):
