@@ -55,7 +55,9 @@ RUN playwright install-deps chromium firefox webkit
 COPY . .
 
 # 构建前端
-RUN cd web_ui && npm install && npm run build && cd ..
+WORKDIR /app/web_ui
+RUN npm install && npm run build
+WORKDIR /app
 
 # 设置配置文件(如果不存在)
 COPY config.example.yaml ./config.yaml

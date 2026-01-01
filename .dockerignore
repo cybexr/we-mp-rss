@@ -1,5 +1,6 @@
 data/
-web_ui/
+web_ui/node_modules/
+web_ui/dist/
 Dockerfile/
 node_modules/
 scripts/
