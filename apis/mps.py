@@ -2,7 +2,6 @@ from logging import info
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File, Request
 from fastapi.responses import FileResponse
-from fastapi.background import BackgroundTasks
 from sqlalchemy.orm import Session
 from core.auth import get_current_user
 from core.db import DB
@@ -140,43 +139,79 @@ async def get_categories(
 @router.get("/update/{mp_id}", summary="更新公众号文章")
 async def update_mps(
      mp_id: str,
-     background_tasks: BackgroundTasks,
      start_page: int = 0,
      end_page: int = 1,
     current_user: dict = Depends(get_current_user)
 ):
+    """
+    更新指定公众号的文章列表。
+
+    此接口会直接同步等待文章更新完成，并返回实际获取到的文章列表。
+    更新操作受频率限制保护，默认间隔60秒。
+
+    Args:
+        mp_id: 公众号ID
+        start_page: 起始页码，默认0
+        end_page: 结束页码，默认1（实际会获取 end_page 页的文章）
+
+    Returns:
+        包含以下字段的响应:
+        - time_span: 距离上次更新的时间间隔（秒）
+        - list: 本次更新获取到的文章列表
+        - total: 获取到的文章总数
+        - mp_id: 公众号ID
+
+    Raises:
+        404: 公众号不存在
+        400: 更新过于频繁
+        500: 服务器内部错误
+    """
     session = DB.get_session()
     try:
         from core.models.feed import Feed
+        from core.wx import WxGather
+
         mp = session.query(Feed).filter(Feed.id == mp_id).first()
         if not mp:
            return error_response(
                     code=40401,
                     message="请选择一个公众号"
                 )
+
         import time
         sync_interval=cfg.get("sync_interval",60)
         if mp.update_time is None:
             mp.update_time=int(time.time())-sync_interval
         time_span=int(time.time())-int(mp.update_time)
+
         if time_span<sync_interval:
            return error_response(
                     code=40402,
                     message="请不要频繁更新操作",
                     data={"time_span":time_span}
                 )
-        result=[]
-        async def UpArt(mp):
-            from core.wx import WxGather
-            wx=WxGather().Model()
-            await wx.get_Articles(mp.faker_id,Mps_id=mp.id,Mps_title=mp.mp_name,CallBack=UpdateArticle,start_page=start_page,MaxPage=end_page)
-            result.extend(wx.articles)
-        background_tasks.add_task(UpArt, mp)
+
+        # 直接执行文章更新任务（同步等待完成）
+        wx=WxGather().Model()
+        await wx.get_Articles(
+            mp.faker_id,
+            Mps_id=mp.id,
+            Mps_title=mp.mp_name,
+            CallBack=UpdateArticle,
+            start_page=start_page,
+            MaxPage=end_page
+        )
+
+        # 更新公众号的最后更新时间
+        mp.update_time = int(time.time())
+        session.commit()
+
+        # 返回实际获取到的文章列表
         return success_response({
-            "time_span":time_span,
-            "list":result,
-            "total":len(result),
-            "mps":mp
+            "time_span": time_span,
+            "list": wx.articles,
+            "total": len(wx.articles),
+            "mp_id": mp.id
         })
     except Exception as e:
         print(f"更新公众号文章: {str(e)}",e)
