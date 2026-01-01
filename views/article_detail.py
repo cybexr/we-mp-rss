@@ -13,7 +13,7 @@ from core.models.tags import Tags
 from apis.base import format_search_kw
 from core.lax.template_parser import TemplateParser
 from views.config import base
-from driver.wxarticle import Web
+from driver.wxarticle import WXArticleFetcher
 from core.cache import cache_view, clear_cache_pattern, data_cache
 # 创建路由器
 router = APIRouter(tags=["文章详情"])
@@ -70,8 +70,8 @@ async def article_detail_view(
             rel_data = {
                 "id": rel_article.id,
                 "title": rel_article.title,
-                "description": rel_article.description or Web.get_description(rel_article.content),
-                "pic_url": Web.get_image_url(rel_article.pic_url),
+                "description": rel_article.description or WXArticleFetcher.get_description(rel_article.content),
+                "pic_url": WXArticleFetcher.get_image_url(rel_article.pic_url),
                 "publish_time": datetime.fromtimestamp(rel_article.publish_time).strftime('%Y-%m-%d %H:%M') if rel_article.publish_time else ""
             }
             related_list.append(rel_data)
@@ -80,15 +80,15 @@ async def article_detail_view(
         article_data = {
             "id": article.id,
             "title": article.title,
-            "description": article.description or Web.get_description(article.content),
-            "pic_url": Web.get_image_url(article.pic_url),
+            "description": article.description or WXArticleFetcher.get_description(article.content),
+            "pic_url": WXArticleFetcher.get_image_url(article.pic_url),
             "url": article.url,
             "publish_time": datetime.fromtimestamp(article.publish_time).strftime('%Y-%m-%d %H:%M') if article.publish_time else "",
             "created_at": article.created_at.strftime('%Y-%m-%d %H:%M') if article.created_at else "",
             "content": process_content_images(article.content or ""),
             "mp_name": feed.mp_name if feed else "未知公众号",
             "mp_id": article.mp_id,
-            "mp_cover": Web.get_image_url(feed.mp_cover) if feed else "",
+            "mp_cover": WXArticleFetcher.get_image_url(feed.mp_cover) if feed else "",
             "mp_intro": feed.mp_intro if feed else "",
         }
         

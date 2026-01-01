@@ -4,7 +4,7 @@ from threading import Thread
 from sqlalchemy import false
 from core.db import DB
 from core.models.article import Article
-from driver.wxarticle import Web
+from driver.wxarticle import WXArticleFetcher
 from driver.success import Success
 from driver.base import WX_API
 from core.print import print_error,print_info,print_success
