@@ -464,8 +464,8 @@ class WXArticleFetcher:
     def clean_article_content(html_content: str):
         from tools.html import htmltools
         from core.config import cfg
-        # Create temporary instance for fix_images which needs self
-        temp_fetcher = WXArticleFetcher(page=None, callback=None)
+        # Create a mock page object for accessing instance methods
+        temp_fetcher = WXArticleFetcher(page=object())
         html_content = temp_fetcher.fix_images(html_content)
         if not cfg.get("gather.clean_html",False):
             return html_content
