@@ -11,8 +11,10 @@ from core.print import print_info,print_success,print_error
 from driver.wx import WX_API
 from driver.success import Success
 from driver.browser_manager import BrowserManager
+import asyncio
 wx_db=db.Db(tag="任务调度")
-def fetch_all_article():
+
+async def fetch_all_article():
     print("开始更新")
     wx=WxGather().Model()
     try:
@@ -20,12 +22,12 @@ def fetch_all_article():
         mps=db.DB.get_all_mps()
         for item in mps:
             try:
-                wx.get_Articles(item.faker_id,CallBack=UpdateArticle,Mps_id=item.id,Mps_title=item.mp_name, MaxPage=1)
+                await wx.get_Articles(item.faker_id,CallBack=UpdateArticle,Mps_id=item.id,Mps_title=item.mp_name, MaxPage=1)
             except Exception as e:
                 print(e)
-        print(wx.articles) 
+        print(wx.articles)
     except Exception as e:
-        print(e)         
+        print(e)
     finally:
         logger.info(f"所有公众号更新完成,共更新{wx.all_count()}条数据")
 
@@ -37,14 +39,15 @@ from core.models.message_task import MessageTask
 # from core.queue import TaskQueue
 from .webhook import web_hook
 interval=int(cfg.get("interval",60)) # 每隔多少秒执行一次
-def do_job(mp=None,task:MessageTask=None):
+
+async def do_job(mp=None,task:MessageTask=None):
         # TaskQueue.add_task(test,info=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         # print("执行任务", task.mps_id)
         print("执行任务")
         all_count=0
         wx=WxGather().Model()
         try:
-            wx.get_Articles(mp.faker_id,CallBack=UpdateArticle,Mps_id=mp.id,Mps_title=mp.mp_name, MaxPage=1,Over_CallBack=Update_Over,interval=interval)
+            await wx.get_Articles(mp.faker_id,CallBack=UpdateArticle,Mps_id=mp.id,Mps_title=mp.mp_name, MaxPage=1,Over_CallBack=Update_Over,interval=interval)
         except Exception as e:
             print_error(e)
             # raise
