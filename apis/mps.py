@@ -166,11 +166,11 @@ async def update_mps(
                     data={"time_span":time_span}
                 )
         result=[]
-        def UpArt(mp):
+        async def UpArt(mp):
             from core.wx import WxGather
             wx=WxGather().Model()
-            wx.get_Articles(mp.faker_id,Mps_id=mp.id,Mps_title=mp.mp_name,CallBack=UpdateArticle,start_page=start_page,MaxPage=end_page)
-            result=wx.articles
+            await wx.get_Articles(mp.faker_id,Mps_id=mp.id,Mps_title=mp.mp_name,CallBack=UpdateArticle,start_page=start_page,MaxPage=end_page)
+            result.extend(wx.articles)
         background_tasks.add_task(UpArt, mp)
         return success_response({
             "time_span":time_span,

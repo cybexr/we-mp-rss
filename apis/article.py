@@ -385,11 +385,12 @@ async def reextract_article(
             except Exception as e:
                 print_error(f"Web方式提取内容失败: {str(e)}")
         else:
-            # 使用 WxGather 方式提取
+            # 使用 WxGather 方式提取 (异步)
             from core.wx.base import WxGather
             try:
                 ga = WxGather().Model()
-                content = ga.content_extract(url)
+                # 使用 await 调用异步方法
+                content = await ga.content_extract(url)
             except Exception as e:
                 print_error(f"WxGather方式提取内容失败: {str(e)}")
 

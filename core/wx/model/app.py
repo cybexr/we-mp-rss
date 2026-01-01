@@ -67,8 +67,8 @@ class MpsAppMsg(WxGather):
             self.cleanup()
         except:
             pass
-    # 重写 get_Articles 方法
-    def get_Articles(self, faker_id:str=None,Mps_id:str=None,Mps_title="",CallBack=None,start_page:int=0,MaxPage:int=1,interval=10,Gather_Content=False,Item_Over_CallBack=None,Over_CallBack=None):
+    # 重写 get_Articles 方法 - 异步版本
+    async def get_Articles(self, faker_id:str=None,Mps_id:str=None,Mps_title="",CallBack=None,start_page:int=0,MaxPage:int=1,interval=10,Gather_Content=False,Item_Over_CallBack=None,Over_CallBack=None):
         super().Start(mp_id=Mps_id)
         if self.Gather_Content:
             Gather_Content=True
@@ -134,7 +134,7 @@ class MpsAppMsg(WxGather):
                                 for item in publish_info["appmsgex"]:
                                     if Gather_Content:
                                         if not super().HasGathered(item["aid"]):
-                                            item["content"] = self.content_extract(item['link'])
+                                            item["content"] = await self.content_extract(item['link'])
                                             super().Wait(3,10,tips=f"{item['title']} 采集完成")
                                     else:
                                         item["content"] = ""
