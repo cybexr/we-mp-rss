@@ -2,6 +2,8 @@ import json
 import requests
 import time
 import random
+import asyncio
+import aiohttp
 import yaml
 import re
 from bs4 import BeautifulSoup
@@ -98,13 +100,14 @@ class MpsWeb(WxGather):
             params["begin"] = str(begin)
             print(f"第{i+1}页开始爬取\n")
             # 随机暂停几秒，避免过快的请求导致过快的被查到
-            time.sleep(random.randint(0,interval))
+            await asyncio.sleep(random.randint(0,interval))
             try:
                 headers = self.fix_header(url)
-                resp = session.get(url, headers=headers, params = params, verify=False)
-                
-                msg = resp.json()
-                self._cookies =resp.cookies
+                # Use aiohttp for async HTTP request
+                async with aiohttp.ClientSession(cookies=session.cookies, connector=aiohttp.TCPConnector(ssl=False)) as aio_session:
+                    async with aio_session.get(url, headers=headers, params=params) as resp:
+                        msg = await resp.json()
+                        self._cookies = resp.cookies
                 # 流量控制了, 退出
                 if msg['base_resp']['ret'] == 200013:
                     super().Error("frequencey control, stop at {}".format(str(begin)))
@@ -145,10 +148,10 @@ class MpsWeb(WxGather):
                     print(f"第{i+1}页爬取成功\n")
                 # 翻页
                 i += 1
-            except requests.exceptions.Timeout:
+            except (aiohttp.ClientTimeout, asyncio.TimeoutError):
                 print("Request timed out")
                 break
-            except requests.exceptions.RequestException as e:
+            except aiohttp.ClientError as e:
                 print(f"Request error: {e}")
                 break
             finally:
