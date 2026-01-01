@@ -3,6 +3,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from core.auth import get_current_user
 from core.db import DB
 from core.wx import search_Biz
@@ -110,31 +111,30 @@ async def get_mps(
 async def get_categories(
     current_user: dict = Depends(get_current_user)
 ):
-    session = DB.get_session()
-    try:
-        from core.models.feed import Feed
-        categories = session.query(Feed.category)\
-            .filter(Feed.category.isnot(None))\
-            .filter(Feed.category != '')\
-            .distinct()\
-            .order_by(Feed.category.asc())\
-            .all()
-
-        category_list = [c[0] for c in categories]
-        return success_response({
-            'categories': category_list
-        })
-    except Exception as e:
-        print(f"获取分类列表错误: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response(
-                code=50001,
-                message="获取分类列表失败"
+    async with DB.async_session_factory() as session:
+        try:
+            from core.models.feed import Feed
+            result = await session.execute(
+                select(Feed.category)
+                .where(Feed.category.isnot(None))
+                .where(Feed.category != '')
+                .distinct()
+                .order_by(Feed.category.asc())
             )
-        )
-    finally:
-        session.close()
+            categories = result.scalars().all()
+
+            return success_response({
+                'categories': categories
+            })
+        except Exception as e:
+            print(f"获取分类列表错误: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_response(
+                    code=50001,
+                    message="获取分类列表失败"
+                )
+            )
 
 @router.get("/update/{mp_id}", summary="更新公众号文章")
 async def update_mps(
@@ -166,100 +166,110 @@ async def update_mps(
         400: 更新过于频繁
         500: 服务器内部错误
     """
-    session = DB.get_session()
-    try:
-        from core.models.feed import Feed
-        from core.wx import WxGather
+    async with DB.async_session_factory() as session:
+        try:
+            from core.models.feed import Feed
+            from core.wx import WxGather
 
-        mp = session.query(Feed).filter(Feed.id == mp_id).first()
-        if not mp:
-           return error_response(
-                    code=40401,
-                    message="请选择一个公众号"
-                )
-
-        import time
-        sync_interval=cfg.get("sync_interval",60)
-        if mp.update_time is None:
-            mp.update_time=int(time.time())-sync_interval
-        time_span=int(time.time())-int(mp.update_time)
-
-        if time_span<sync_interval:
-           return error_response(
-                    code=40402,
-                    message="请不要频繁更新操作",
-                    data={"time_span":time_span}
-                )
-
-        # 直接执行文章更新任务（同步等待完成）
-        wx=WxGather().Model()
-        await wx.get_Articles(
-            mp.faker_id,
-            Mps_id=mp.id,
-            Mps_title=mp.mp_name,
-            CallBack=UpdateArticle,
-            start_page=start_page,
-            MaxPage=end_page
-        )
-
-        # 更新公众号的最后更新时间
-        mp.update_time = int(time.time())
-        session.commit()
-
-        # 返回实际获取到的文章列表
-        return success_response({
-            "time_span": time_span,
-            "list": wx.articles,
-            "total": len(wx.articles),
-            "mp_id": mp.id
-        })
-    except Exception as e:
-        print(f"更新公众号文章: {str(e)}",e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response(
-                code=50001,
-                message=f"更新公众号文章{str(e)}"
+            result = await session.execute(
+                select(Feed).where(Feed.id == mp_id)
             )
-        )
+            mp = result.scalars().first()
+            if not mp:
+               return error_response(
+                        code=40401,
+                        message="请选择一个公众号"
+                    )
+
+            import time
+            sync_interval=cfg.get("sync_interval",60)
+            if mp.update_time is None:
+                mp.update_time=int(time.time())-sync_interval
+            time_span=int(time.time())-int(mp.update_time)
+
+            if time_span<sync_interval:
+               return error_response(
+                        code=40402,
+                        message="请不要频繁更新操作",
+                        data={"time_span":time_span}
+                    )
+
+            # 直接执行文章更新任务（同步等待完成）
+            wx=WxGather().Model()
+            try:
+                await wx.get_Articles(
+                    mp.faker_id,
+                    Mps_id=mp.id,
+                    Mps_title=mp.mp_name,
+                    CallBack=UpdateArticle,
+                    start_page=start_page,
+                    MaxPage=end_page
+                )
+
+                # 更新公众号的最后更新时间
+                mp.update_time = int(time.time())
+                await session.commit()
+
+                # 返回实际获取到的文章列表
+                return success_response({
+                    "time_span": time_span,
+                    "list": wx.articles,
+                    "total": len(wx.articles),
+                    "mp_id": mp.id
+                })
+            finally:
+                # Explicit cleanup to prevent resource leaks
+                await wx.cleanup()
+        except Exception as e:
+            print(f"更新公众号文章: {str(e)}",e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_response(
+                    code=50001,
+                    message=f"更新公众号文章{str(e)}"
+                )
+            )
 
 @router.get("/{mp_id}", summary="获取公众号详情")
 async def get_mp(
     mp_id: str,
     # current_user: dict = Depends(get_current_user)
 ):
-    session = DB.get_session()
-    try:
-        from core.models.feed import Feed
-        mp = session.query(Feed).filter(Feed.id == mp_id).first()
-        if not mp:
+    async with DB.async_session_factory() as session:
+        try:
+            from core.models.feed import Feed
+            result = await session.execute(
+                select(Feed).where(Feed.id == mp_id)
+            )
+            mp = result.scalars().first()
+            if not mp:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_response(
+                        code=40401,
+                        message="公众号不存在"
+                    )
+                )
+            return success_response({
+                "id": mp.id,
+                "mp_name": mp.mp_name,
+                "mp_cover": mp.mp_cover,
+                "mp_intro": mp.mp_intro,
+                "status": mp.status,
+                "cache_images": mp.cache_images,
+                "remarks": mp.remarks,
+                "category": mp.category,
+                "created_at": mp.created_at.isoformat()
+            })
+        except Exception as e:
+            print(f"获取公众号详情错误: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=error_response(
-                    code=40401,
-                    message="公众号不存在"
+                    code=50001,
+                    message="获取公众号详情失败"
                 )
             )
-        return success_response({
-            "id": mp.id,
-            "mp_name": mp.mp_name,
-            "mp_cover": mp.mp_cover,
-            "mp_intro": mp.mp_intro,
-            "status": mp.status,
-            "cache_images": mp.cache_images,
-            "remarks": mp.remarks,
-            "category": mp.category,
-            "created_at": mp.created_at.isoformat()
-        })
-    except Exception as e:
-        print(f"获取公众号详情错误: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response(
-                code=50001,
-                message="获取公众号详情失败"
-            )
-        )
 @router.post("/by_article", summary="通过文章链接获取公众号详情")
 async def get_mp_by_article(
     url: str=Query(..., min_length=1),
@@ -305,76 +315,79 @@ async def add_mp(
     category: str = Body(''),
     current_user: dict = Depends(get_current_user)
 ):
-    session = DB.get_session()
-    try:
-        from core.models.feed import Feed
-        import time
-        now = datetime.now()
-        
-        import base64
-        mpx_id = base64.b64decode(mp_id).decode("utf-8")
-        local_avatar_path = f"{save_avatar_locally(avatar)}"
-        
-        # 检查公众号是否已存在
-        existing_feed = session.query(Feed).filter(Feed.faker_id == mp_id).first()
-        
-        if existing_feed:
-            # 更新现有记录
-            existing_feed.mp_name = mp_name
-            existing_feed.mp_cover = local_avatar_path
-            existing_feed.mp_intro = mp_intro
-            existing_feed.cache_images = cache_images
-            existing_feed.remarks = remarks
-            existing_feed.category = category
-            existing_feed.updated_at = now
-        else:
-            # 创建新的Feed记录
-            new_feed = Feed(
-                id=f"MP_WXS_{mpx_id}",
-                mp_name=mp_name,
-                mp_cover= local_avatar_path,
-                mp_intro=mp_intro,
-                status=1,  # 默认启用状态
-                created_at=now,
-                updated_at=now,
-                faker_id=mp_id,
-                update_time=0,
-                sync_time=0,
-                cache_images=cache_images,
-                remarks=remarks,
-                category=category,
+    async with DB.async_session_factory() as session:
+        try:
+            from core.models.feed import Feed
+            import time
+            now = datetime.now()
+
+            import base64
+            mpx_id = base64.b64decode(mp_id).decode("utf-8")
+            local_avatar_path = f"{save_avatar_locally(avatar)}"
+
+            # 检查公众号是否已存在
+            result = await session.execute(
+                select(Feed).where(Feed.faker_id == mp_id)
             )
-            session.add(new_feed)
-           
-        session.commit()
-        
-        feed = existing_feed if existing_feed else new_feed
-         #在这里实现第一次添加获取公众号文章
-        if not existing_feed:
-            from core.queue import TaskQueue
-            from core.wx import WxGather
-            Max_page=int(cfg.get("max_page","2"))
-            TaskQueue.add_task( WxGather().Model().get_Articles,faker_id=feed.faker_id,Mps_id=feed.id,CallBack=UpdateArticle,MaxPage=Max_page,Mps_title=mp_name)
-            
-        return success_response({
-            "id": feed.id,
-            "mp_name": feed.mp_name,
-            "mp_cover": feed.mp_cover,
-            "mp_intro": feed.mp_intro,
-            "status": feed.status,
-            "faker_id":mp_id,
-            "created_at": feed.created_at.isoformat()
-        })
-    except Exception as e:
-        session.rollback()
-        print(f"添加公众号错误: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response(
-                code=50001,
-                message="添加公众号失败"
+            existing_feed = result.scalars().first()
+
+            if existing_feed:
+                # 更新现有记录
+                existing_feed.mp_name = mp_name
+                existing_feed.mp_cover = local_avatar_path
+                existing_feed.mp_intro = mp_intro
+                existing_feed.cache_images = cache_images
+                existing_feed.remarks = remarks
+                existing_feed.category = category
+                existing_feed.updated_at = now
+            else:
+                # 创建新的Feed记录
+                new_feed = Feed(
+                    id=f"MP_WXS_{mpx_id}",
+                    mp_name=mp_name,
+                    mp_cover= local_avatar_path,
+                    mp_intro=mp_intro,
+                    status=1,  # 默认启用状态
+                    created_at=now,
+                    updated_at=now,
+                    faker_id=mp_id,
+                    update_time=0,
+                    sync_time=0,
+                    cache_images=cache_images,
+                    remarks=remarks,
+                    category=category,
+                )
+                session.add(new_feed)
+
+            await session.commit()
+
+            feed = existing_feed if existing_feed else new_feed
+             #在这里实现第一次添加获取公众号文章
+            if not existing_feed:
+                from core.queue import TaskQueue
+                from core.wx import WxGather
+                Max_page=int(cfg.get("max_page","2"))
+                TaskQueue.add_task( WxGather().Model().get_Articles,faker_id=feed.faker_id,Mps_id=feed.id,CallBack=UpdateArticle,MaxPage=Max_page,Mps_title=mp_name)
+
+            return success_response({
+                "id": feed.id,
+                "mp_name": feed.mp_name,
+                "mp_cover": feed.mp_cover,
+                "mp_intro": feed.mp_intro,
+                "status": feed.status,
+                "faker_id":mp_id,
+                "created_at": feed.created_at.isoformat()
+            })
+        except Exception as e:
+            await session.rollback()
+            print(f"添加公众号错误: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_response(
+                    code=50001,
+                    message="添加公众号失败"
+                )
             )
-        )
 
 
 
@@ -385,125 +398,129 @@ async def update_mp(
     request: Request,
     current_user: dict = Depends(get_current_user)
 ):
-    session = DB.get_session()
-    try:
-        from core.models.feed import Feed
+    async with DB.async_session_factory() as session:
+        try:
+            from core.models.feed import Feed
 
-        mp = session.query(Feed).filter(Feed.id == mp_id).first()
-        if not mp:
+            result = await session.execute(
+                select(Feed).where(Feed.id == mp_id)
+            )
+            mp = result.scalars().first()
+            if not mp:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_response(
+                        code=40401,
+                        message="公众号不存在"
+                    )
+                )
+
+            request_json = await request.json()
+
+            if 'cache_images' in request_json:
+                cache_images_value = request_json['cache_images']
+                if isinstance(cache_images_value, bool):
+                    mp.cache_images = cache_images_value
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=error_response(
+                            code=40001,
+                            message="cache_images字段必须是布尔类型"
+                        )
+                    )
+
+            if 'remarks' in request_json:
+                remarks_value = request_json['remarks']
+                if isinstance(remarks_value, str) and len(remarks_value) <= 255:
+                    mp.remarks = remarks_value
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=error_response(
+                            code=40002,
+                            message="remarks字段必须是字符串且长度不超过255"
+                        )
+                    )
+
+            if 'category' in request_json:
+                category_value = request_json['category']
+                if isinstance(category_value, str) and len(category_value) <= 255:
+                    mp.category = category_value
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=error_response(
+                            code=40003,
+                            message="category字段必须是字符串且长度不超过255"
+                        )
+                    )
+
+            mp.updated_at = datetime.now()
+            await session.commit()
+
+            return success_response({
+                "id": mp.id,
+                "mp_name": mp.mp_name,
+                "mp_cover": mp.mp_cover,
+                "mp_intro": mp.mp_intro,
+                "status": mp.status,
+                "cache_images": mp.cache_images,
+                "remarks": mp.remarks,
+                "category": mp.category,
+                "created_at": mp.created_at.isoformat(),
+                "updated_at": mp.updated_at.isoformat()
+            })
+        except HTTPException:
+            raise
+        except Exception as e:
+            await session.rollback()
+            print(f"更新公众号信息错误: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=error_response(
-                    code=40401,
-                    message="公众号不存在"
+                    code=50001,
+                    message="更新公众号信息失败"
                 )
             )
-
-        request_json = await request.json()
-
-        if 'cache_images' in request_json:
-            cache_images_value = request_json['cache_images']
-            if isinstance(cache_images_value, bool):
-                mp.cache_images = cache_images_value
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=error_response(
-                        code=40001,
-                        message="cache_images字段必须是布尔类型"
-                    )
-                )
-
-        if 'remarks' in request_json:
-            remarks_value = request_json['remarks']
-            if isinstance(remarks_value, str) and len(remarks_value) <= 255:
-                mp.remarks = remarks_value
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=error_response(
-                        code=40002,
-                        message="remarks字段必须是字符串且长度不超过255"
-                    )
-                )
-
-        if 'category' in request_json:
-            category_value = request_json['category']
-            if isinstance(category_value, str) and len(category_value) <= 255:
-                mp.category = category_value
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=error_response(
-                        code=40003,
-                        message="category字段必须是字符串且长度不超过255"
-                    )
-                )
-
-        mp.updated_at = datetime.now()
-        session.commit()
-
-        return success_response({
-            "id": mp.id,
-            "mp_name": mp.mp_name,
-            "mp_cover": mp.mp_cover,
-            "mp_intro": mp.mp_intro,
-            "status": mp.status,
-            "cache_images": mp.cache_images,
-            "remarks": mp.remarks,
-            "category": mp.category,
-            "created_at": mp.created_at.isoformat(),
-            "updated_at": mp.updated_at.isoformat()
-        })
-    except HTTPException:
-        raise
-    except Exception as e:
-        session.rollback()
-        print(f"更新公众号信息错误: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response(
-                code=50001,
-                message="更新公众号信息失败"
-            )
-        )
-    finally:
-        session.close()
 
 @router.delete("/{mp_id}", summary="删除订阅号")
 async def delete_mp(
     mp_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    session = DB.get_session()
-    try:
-        from core.models.feed import Feed
-        mp = session.query(Feed).filter(Feed.id == mp_id).first()
-        if not mp:
+    async with DB.async_session_factory() as session:
+        try:
+            from core.models.feed import Feed
+            result = await session.execute(
+                select(Feed).where(Feed.id == mp_id)
+            )
+            mp = result.scalars().first()
+            if not mp:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_response(
+                        code=40401,
+                        message="订阅号不存在"
+                    )
+                )
+
+            await session.delete(mp)
+            await session.commit()
+            return success_response({
+                "message": "订阅号删除成功",
+                "id": mp_id
+            })
+        except Exception as e:
+            await session.rollback()
+            print(f"删除订阅号错误: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=error_response(
-                    code=40401,
-                    message="订阅号不存在"
+                    code=50001,
+                    message="删除订阅号失败"
                 )
             )
-
-        session.delete(mp)
-        session.commit()
-        return success_response({
-            "message": "订阅号删除成功",
-            "id": mp_id
-        })
-    except Exception as e:
-        session.rollback()
-        print(f"删除订阅号错误: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response(
-                code=50001,
-                message="删除订阅号失败"
-            )
-        )
 
 @router.put("/batch-category", summary="批量更新公众号分类")
 async def batch_update_category(
@@ -511,77 +528,83 @@ async def batch_update_category(
     category: str = Body(..., min_length=1, max_length=255),
     current_user: dict = Depends(get_current_user)
 ):
-    session = DB.get_session()
-    try:
-        from core.models.feed import Feed
-        from sqlalchemy import or_
+    async with DB.async_session_factory() as session:
+        try:
+            from core.models.feed import Feed
 
-        # 添加调试日志
-        print(f"[DEBUG] 批量更新分类 - 接收到的 mp_ids: {mp_ids}")
-        print(f"[DEBUG] 批量更新分类 - category: {category}")
+            # 添加调试日志
+            print(f"[DEBUG] 批量更新分类 - 接收到的 mp_ids: {mp_ids}")
+            print(f"[DEBUG] 批量更新分类 - category: {category}")
 
-        # 先尝试用 id 查询
-        mps = session.query(Feed).filter(Feed.id.in_(mp_ids)).all()
-        print(f"[DEBUG] 通过 id 查询到 {len(mps)} 条记录")
+            # 先尝试用 id 查询
+            result = await session.execute(
+                select(Feed).where(Feed.id.in_(mp_ids))
+            )
+            mps = result.scalars().all()
+            print(f"[DEBUG] 通过 id 查询到 {len(mps)} 条记录")
 
-        # 如果没找到，尝试用 faker_id 查询
-        if not mps or len(mps) < len(mp_ids):
-            mps_by_faker = session.query(Feed).filter(Feed.faker_id.in_(mp_ids)).all()
-            print(f"[DEBUG] 通过 faker_id 查询到 {len(mps_by_faker)} 条记录")
+            # 如果没找到，尝试用 faker_id 查询
+            if not mps or len(mps) < len(mp_ids):
+                result_by_faker = await session.execute(
+                    select(Feed).where(Feed.faker_id.in_(mp_ids))
+                )
+                mps_by_faker = result_by_faker.scalars().all()
+                print(f"[DEBUG] 通过 faker_id 查询到 {len(mps_by_faker)} 条记录")
 
-            # 合并结果，去重
-            all_mps = mps + mps_by_faker
-            seen_ids = set()
-            mps = []
-            for mp in all_mps:
-                if mp.id not in seen_ids:
-                    seen_ids.add(mp.id)
-                    mps.append(mp)
+                # 合并结果，去重
+                all_mps = list(mps) + list(mps_by_faker)
+                seen_ids = set()
+                mps = []
+                for mp in all_mps:
+                    if mp.id not in seen_ids:
+                        seen_ids.add(mp.id)
+                        mps.append(mp)
 
-            print(f"[DEBUG] 合并后共 {len(mps)} 条唯一记录")
+                print(f"[DEBUG] 合并后共 {len(mps)} 条唯一记录")
 
-        if mps:
-            print(f"[DEBUG] 最终查询到的记录IDs: {[mp.id for mp in mps]}")
-            print(f"[DEBUG] 最终查询到的记录faker_ids: {[mp.faker_id for mp in mps]}")
+            if mps:
+                print(f"[DEBUG] 最终查询到的记录IDs: {[mp.id for mp in mps]}")
+                print(f"[DEBUG] 最终查询到的记录faker_ids: {[mp.faker_id for mp in mps]}")
 
-        if not mps:
-            # 列出数据库中所有 feeds 的 id 和 faker_id 供调试
-            all_feeds = session.query(Feed.id, Feed.faker_id, Feed.mp_name).limit(10).all()
-            print(f"[DEBUG] 数据库中前10条记录:")
-            for feed in all_feeds:
-                print(f"  id={feed[0]}, faker_id={feed[1]}, mp_name={feed[2]}")
+            if not mps:
+                # 列出数据库中所有 feeds 的 id 和 faker_id 供调试
+                result_debug = await session.execute(
+                    select(Feed.id, Feed.faker_id, Feed.mp_name).limit(10)
+                )
+                all_feeds = result_debug.all()
+                print(f"[DEBUG] 数据库中前10条记录:")
+                for feed in all_feeds:
+                    print(f"  id={feed[0]}, faker_id={feed[1]}, mp_name={feed[2]}")
 
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_response(
+                        code=40401,
+                        message=f"公众号不存在，请检查选中的公众号是否存在。未找到以下ID: {mp_ids}"
+                    )
+                )
+
+            updated_count = 0
+            for mp in mps:
+                mp.category = category
+                mp.updated_at = datetime.now()
+                updated_count += 1
+
+            await session.commit()
+
+            return success_response({
+                "updated_count": updated_count
+            })
+        except HTTPException:
+            raise
+        except Exception as e:
+            await session.rollback()
+            print(f"批量更新分类错误: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=error_response(
-                    code=40401,
-                    message=f"公众号不存在，请检查选中的公众号是否存在。未找到以下ID: {mp_ids}"
+                    code=50001,
+                    message="批量更新分类失败"
                 )
             )
-
-        updated_count = 0
-        for mp in mps:
-            mp.category = category
-            mp.updated_at = datetime.now()
-            updated_count += 1
-
-        session.commit()
-
-        return success_response({
-            "updated_count": updated_count
-        })
-    except HTTPException:
-        raise
-    except Exception as e:
-        session.rollback()
-        print(f"批量更新分类错误: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_response(
-                code=50001,
-                message="批量更新分类失败"
-            )
-        )
-    finally:
-        session.close()
 

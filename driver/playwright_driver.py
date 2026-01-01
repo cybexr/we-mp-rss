@@ -235,16 +235,17 @@ class PlaywrightController:
 
    
 
-    def __del__(self):
-        # 避免在程序退出时调用Close()，防止"can't register atexit after shutdown"错误
-        try:
-            import atexit
-            # 检查是否在atexit处理过程中
-            if not atexit._exithandlers:
-                self.Close()
-        except:
-            # 如果发生任何异常，直接跳过清理
-            pass
+    # IMPORTANT: Always use async context manager for proper cleanup:
+    # Example usage:
+    #   controller = PlaywrightController()
+    #   try:
+    #       await controller.start_browser()
+    #       await controller.open_url("https://example.com")
+    #   finally:
+    #       await controller.cleanup()
+    #
+    # DO NOT rely on __del__ for cleanup - async cleanup cannot be safely
+    # called from __del__ and will cause RuntimeWarning or resource leaks.
 
     async def open_url(self, url, wait_until="domcontentloaded"):
         try:

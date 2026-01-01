@@ -63,12 +63,16 @@ class MpsAppMsg(WxGather):
             await self.browser_manager.cleanup()
             self.browser_manager = None
 
-    def __del__(self):
-        """析构时清理资源"""
-        try:
-            self.cleanup()
-        except:
-            pass
+    # IMPORTANT: Always use async context manager for proper cleanup:
+    # Example usage:
+    #   mps_app = MpsAppMsg()
+    #   try:
+    #       await mps_app.get_Articles(...)
+    #   finally:
+    #       await mps_app.cleanup()
+    #
+    # DO NOT rely on __del__ for cleanup - async cleanup cannot be safely
+    # called from __del__ and will cause RuntimeWarning or resource leaks.
     # 重写 get_Articles 方法 - 异步版本
     async def get_Articles(self, faker_id:str=None,Mps_id:str=None,Mps_title="",CallBack=None,start_page:int=0,MaxPage:int=1,interval=10,Gather_Content=False,Item_Over_CallBack=None,Over_CallBack=None):
         super().Start(mp_id=Mps_id)
