@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status as fast_status, Query
 from core.auth import get_current_user
 from core.db import DB
@@ -110,7 +111,12 @@ async def clean_duplicate(
 ):
     try:
         from tools.clean import clean_duplicate_articles
-        (msg, deleted_count) =clean_duplicate_articles()
+        # Run blocking clean_duplicate_articles in thread pool executor
+        loop = asyncio.get_running_loop()
+        (msg, deleted_count) = await loop.run_in_executor(
+            None,  # Use default thread pool executor
+            clean_duplicate_articles
+        )
         return success_response({
             "message": msg,
             "deleted_count": deleted_count
