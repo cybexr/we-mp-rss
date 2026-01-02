@@ -1,5 +1,6 @@
 from logging import info
 from typing import Optional, List
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -38,9 +39,13 @@ async def search_mp(
     offset: int = 0,
     current_user: dict = Depends(get_current_user)
 ):
-    session = DB.get_session()
     try:
-        result = search_Biz(kw,limit=limit,offset=offset)
+        # Run blocking search_Biz in thread pool executor to avoid blocking event loop
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,  # Use default thread pool executor
+            lambda: search_Biz(kw, limit=limit, offset=offset)
+        )
         data={
             'list':result.get('list') if result is not None else [],
             'page':{
