@@ -4,7 +4,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from core.auth import get_current_user
 from core.db import DB
 from core.wx import search_Biz
@@ -71,37 +71,48 @@ async def get_mps(
     offset: int = Query(0, ge=0),
     kw: str = Query(""),
     category: Optional[str] = Query(None, description="Filter by category"),
-    current_user: dict = Depends(get_current_user),
-    session: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user)
 ):
     try:
         from core.models.feed import Feed
-        query = session.query(Feed)
-        if kw:
-            query = query.filter(Feed.mp_name.ilike(f"%{kw}%"))
-        if category:
-            query = query.filter(Feed.category == category)
-        total = query.count()
-        mps = query.order_by(Feed.created_at.desc()).limit(limit).offset(offset).all()
-        return success_response({
-            "list": [{
-                "id": mp.id,
-                "mp_name": mp.mp_name,
-                "mp_cover": mp.mp_cover,
-                "mp_intro": mp.mp_intro,
-                "status": mp.status,
-                "cache_images": mp.cache_images,
-                "remarks": mp.remarks,
-                "category": mp.category,
-                "created_at": mp.created_at.isoformat()
-            } for mp in mps],
-            "page": {
-                "limit": limit,
-                "offset": offset,
+        # Use async database session instead of sync session
+        async with DB.async_session_factory() as session:
+            # Build query using SQLAlchemy 2.0 select() syntax
+            stmt = select(Feed)
+            if kw:
+                stmt = stmt.where(Feed.mp_name.ilike(f"%{kw}%"))
+            if category:
+                stmt = stmt.where(Feed.category == category)
+
+            # Get total count
+            count_stmt = select(func.count()).select_from(stmt.subquery())
+            total_result = await session.execute(count_stmt)
+            total = total_result.scalar()
+
+            # Get paginated results
+            stmt = stmt.order_by(Feed.created_at.desc()).limit(limit).offset(offset)
+            result = await session.execute(stmt)
+            mps = result.scalars().all()
+
+            return success_response({
+                "list": [{
+                    "id": mp.id,
+                    "mp_name": mp.mp_name,
+                    "mp_cover": mp.mp_cover,
+                    "mp_intro": mp.mp_intro,
+                    "status": mp.status,
+                    "cache_images": mp.cache_images,
+                    "remarks": mp.remarks,
+                    "category": mp.category,
+                    "created_at": mp.created_at.isoformat()
+                } for mp in mps],
+                "page": {
+                    "limit": limit,
+                    "offset": offset,
+                    "total": total
+                },
                 "total": total
-            },
-            "total": total
-        })
+            })
     except Exception as e:
         print(f"获取公众号列表错误: {str(e)}")
         raise HTTPException(
