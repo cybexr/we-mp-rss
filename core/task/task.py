@@ -223,20 +223,41 @@ class TaskScheduler:
 
             try:
                 logger.info("Starting scheduler...")
-                # For AsyncIOScheduler, if no event loop is running, we need to get/create one
-                # but we don't want to block - the scheduler will use the existing loop
+                # For AsyncIOScheduler, we need a running event loop in the current thread
                 try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # A loop is already running (e.g., in FastAPI), scheduler will use it
-                        self._scheduler.start()
-                    else:
-                        # No loop running, start scheduler which will create its own
-                        self._scheduler.start()
-                except RuntimeError:
-                    # No event loop exists, scheduler will create one
+                    # Try to get running loop (works in FastAPI context)
+                    loop = asyncio.get_running_loop()
                     self._scheduler.start()
-                logger.info("Scheduler started successfully")
+                    logger.info("Scheduler started successfully (using existing event loop)")
+                except RuntimeError:
+                    # No running loop - need to create and run one in background thread
+                    # This happens when scheduler is started from a regular thread (e.g., jobs/mps.py)
+                    logger.info("No running event loop in thread, starting loop in background...")
+
+                    def run_scheduler_in_loop():
+                        """Run event loop with scheduler in background thread"""
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            # Start scheduler (it will attach to this loop)
+                            self._scheduler.start()
+                            logger.info("Scheduler started in background thread")
+                            # Run the event loop forever (blocking call, but we're in a thread)
+                            loop.run_forever()
+                        except Exception as e:
+                            logger.error(f"Error in scheduler loop: {e}")
+                        finally:
+                            loop.close()
+
+                    # Start the loop in a daemon thread so it doesn't block application shutdown
+                    import threading
+                    scheduler_thread = threading.Thread(
+                        target=run_scheduler_in_loop,
+                        name="APScheduler-EventLoop",
+                        daemon=True
+                    )
+                    scheduler_thread.start()
+                    logger.info("Scheduler event loop thread started")
             except Exception as e:
                 logger.error(f"Failed to start scheduler: {str(e)}")
                 raise
