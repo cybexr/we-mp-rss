@@ -191,14 +191,14 @@ def web_hook(hook:MessageWebHook):
                 }
             else:
                 # 如果是Article对象，使用getattr获取属性
-                processed_article = {
-                    field.name: (
-                        datetime.fromtimestamp(getattr(article, field.name)).strftime("%Y-%m-%d %H:%M:%S")
-                        if field.name == "publish_time"
-                        else getattr(article, field.name)
-                    )
-                    for field in Article.__table__.columns
-                }
+                processed_article = {}
+                for field in Article.__table__.columns:
+                    # 安全检查：只获取存在的属性（避免 ArticleBase 访问 content 时出错）
+                    if hasattr(article, field.name):
+                        value = getattr(article, field.name)
+                        if field.name == "publish_time" and value is not None:
+                            value = datetime.fromtimestamp(value).strftime("%Y-%m-%d %H:%M:%S")
+                        processed_article[field.name] = value
             processed_articles.append(processed_article)
         
         hook.articles = processed_articles
