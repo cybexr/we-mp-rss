@@ -163,7 +163,7 @@ async def update_mps(
     更新指定公众号的文章列表。
 
     此接口会直接同步等待文章更新完成，并返回实际获取到的文章列表。
-    更新操作受频率限制保护，默认间隔60秒。
+    更新操作受频率限制保护，默认间隔30秒。
 
     Args:
         mp_id: 公众号ID
@@ -198,7 +198,8 @@ async def update_mps(
                     )
 
             import time
-            sync_interval=cfg.get("sync_interval",60)
+            # Allow manual refresh every 30 seconds
+            sync_interval=cfg.get("sync_interval",30)
             if mp.update_time is None:
                 mp.update_time=int(time.time())-sync_interval
             time_span=int(time.time())-int(mp.update_time)

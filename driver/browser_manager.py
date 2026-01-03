@@ -158,8 +158,8 @@ class BrowserManager:
             # Create fetcher with current page
             fetcher = WXArticleFetcher(page=self.controller.page)
 
-            # Fetch with retry - need to call async method
-            result = await self._fetch_with_retry(url, fetcher.async_get_article_content, url)
+            # Fetch with retry - call async method directly
+            result = await self._fetch_with_retry(url, fetcher.get_article_content, url)
 
             # Increment counter
             self.articles_fetched += 1
@@ -173,8 +173,7 @@ class BrowserManager:
 
         except Exception as e:
             print_error(f"Error fetching article: {str(e)}")
-            # On error, restart browser to get fresh state
-            await self._restart_browser(mobile_mode)
+            # Rely on async with context manager for cleanup
             raise
 
     async def batch_fetch_articles(

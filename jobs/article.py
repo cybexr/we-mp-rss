@@ -62,7 +62,7 @@ def cache_article_images(html_content: str) -> int:
         return 0
 
 
-def UpdateArticle(art:dict,check_exist=False):
+def UpdateArticle(art:dict,check_exist=True):
     mps_count=0
     if DEBUG:
         # DB.delete_article(art)

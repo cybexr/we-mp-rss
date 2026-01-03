@@ -128,7 +128,7 @@ class Db:
             pass      
         return False
      
-    def add_article(self, article_data: dict,check_exist=False) -> bool:
+    def add_article(self, article_data: dict,check_exist=True) -> bool:
         try:
             session=self.get_session()
             from datetime import datetime
@@ -140,7 +140,7 @@ class Db:
                 # 检查文章是否已存在
                 existing_article = session.query(Article).filter(Article.url == art.url or Article.id == art.id).first()
                 if existing_article is not None:
-                    print_warning(f"Article already exists: {art.id}")
+                    print_warning(f"Duplicate article skipped: {art.get('url', art.get('id', 'unknown'))}")
                     return False
                 
             if art.created_at is None:

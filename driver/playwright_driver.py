@@ -123,11 +123,30 @@ class PlaywrightController:
             self.isClose = False
             return self.page
         except Exception as e:
-            print(f"浏览器启动失败: {str(e)}")
-            tips="Docker环境;您可以设置环境变量INSTALL=True并重启Docker自动安装浏览器环境;如需要切换浏览器可以设置环境变量BROWSER_TYPE=firefox 支持(firefox,webkit,chromium),开发环境请手工安装"
-            print(tips)
-            self.cleanup()
-            raise Exception(tips)
+            error_msg = str(e)
+            print(f"浏览器启动失败: {error_msg}")
+
+            # Distinguish between async context errors and browser installation issues
+            if 'Sync API' in error_msg or 'asyncio' in error_msg or 'async' in error_msg.lower():
+                # Async context error - using sync API in async loop
+                tips = "Async context error: You are using sync Playwright API inside an asyncio event loop. Solution: Convert all Playwright calls to async API (use playwright.async_api instead of playwright.sync_api, and add 'await' to all Playwright method calls)."
+                print(tips)
+                self.cleanup()
+                raise Exception(tips)
+            elif 'executable' in error_msg.lower() or 'browser' in error_msg.lower() or 'not found' in error_msg.lower():
+                # Browser not installed
+                tips = "Docker环境;您可以设置环境变量INSTALL=True并重启Docker自动安装浏览器环境;如需要切换浏览器可以设置环境变量BROWSER_TYPE=firefox 支持(firefox,webkit,chromium),开发环境请手工安装"
+                print(tips)
+                self.cleanup()
+                raise Exception(tips)
+            else:
+                # Generic error with full traceback
+                import traceback
+                traceback.print_exc()
+                tips = f"Browser launch failed: {error_msg}. Check logs above for full error details."
+                print(tips)
+                self.cleanup()
+                raise Exception(tips)
         
     def string_to_json(self, json_string):
         try:

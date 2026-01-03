@@ -1,6 +1,7 @@
 import threading
 import random
-from apscheduler.schedulers.background import BackgroundScheduler
+import asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from typing import Callable, Any, Optional
 from core.log import logger
@@ -9,8 +10,8 @@ import uuid
 
 class TaskScheduler:
     """
-    线程调度器类，支持cron定时任务调度
-    使用APScheduler作为底层调度引擎
+    异步调度器类，支持cron定时任务调度
+    使用APScheduler AsyncIOScheduler作为底层调度引擎
 
     Cron表达式说明:
     一个cron表达式有5个或6个空格分隔的时间字段，格式为:
@@ -46,7 +47,7 @@ class TaskScheduler:
     
     def __init__(self):
         """初始化调度器和线程锁"""
-        self._scheduler = BackgroundScheduler()
+        self._scheduler = AsyncIOScheduler()
         self._lock = threading.Lock()
         self._jobs = {}
 
@@ -141,16 +142,28 @@ class TaskScheduler:
                     month=month,
                     day_of_week=day_of_week
                 )
-                
-                # 包装任务函数以捕获异常
-                def wrapped_func(*args, **kwargs):
-                    try:
-                        # logger.info(f"Executing job {job_id or 'anonymous'}")
-                        return func(*args, **kwargs)
-                    except Exception as e:
-                        logger.error(f"Job {tag} {job_id or 'anonymous'} failed: {str(e)}")
-                        raise
-                
+
+                # 包装任务函数以捕获异常并处理async函数
+                import inspect
+                if asyncio.iscoroutinefunction(func):
+                    # Function is async, create async wrapper
+                    async def wrapped_func(*args, **kwargs):
+                        try:
+                            # logger.info(f"Executing async job {job_id or 'anonymous'}")
+                            return await func(*args, **kwargs)
+                        except Exception as e:
+                            logger.error(f"Job {tag} {job_id or 'anonymous'} failed: {str(e)}")
+                            raise
+                else:
+                    # Function is sync, create sync wrapper
+                    def wrapped_func(*args, **kwargs):
+                        try:
+                            # logger.info(f"Executing job {job_id or 'anonymous'}")
+                            return func(*args, **kwargs)
+                        except Exception as e:
+                            logger.error(f"Job {tag} {job_id or 'anonymous'} failed: {str(e)}")
+                            raise
+
                 job = self._scheduler.add_job(
                     wrapped_func,
                     trigger=trigger,
@@ -207,10 +220,22 @@ class TaskScheduler:
             if self._scheduler.running:
                 logger.warning("Scheduler is already running")
                 return
-                
+
             try:
                 logger.info("Starting scheduler...")
-                self._scheduler.start()
+                # For AsyncIOScheduler, if no event loop is running, we need to get/create one
+                # but we don't want to block - the scheduler will use the existing loop
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # A loop is already running (e.g., in FastAPI), scheduler will use it
+                        self._scheduler.start()
+                    else:
+                        # No loop running, start scheduler which will create its own
+                        self._scheduler.start()
+                except RuntimeError:
+                    # No event loop exists, scheduler will create one
+                    self._scheduler.start()
                 logger.info("Scheduler started successfully")
             except Exception as e:
                 logger.error(f"Failed to start scheduler: {str(e)}")

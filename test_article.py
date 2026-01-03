@@ -146,8 +146,16 @@ def test_screenshot():
 
 async def test_Article():
     from driver.wxarticle import WXArticleFetcher
-    v=await WXArticleFetcher().async_get_article_content("https://mp.weixin.qq.com/s/puc5q9xFmfMSy3OyqeYxZA")
-    print(v)
+    from driver.playwright_driver import PlaywrightController
+
+    controller = PlaywrightController()
+    try:
+        page = await controller.start_browser()
+        fetcher = WXArticleFetcher(page=page)
+        v = await fetcher.get_article_content("https://mp.weixin.qq.com/s/puc5q9xFmfMSy3OyqeYxZA")
+        print(v)
+    finally:
+        await controller.cleanup()
 def test_send_wx_code():
     from jobs.failauth import send_wx_code
     send_wx_code()
