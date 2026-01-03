@@ -186,7 +186,12 @@ async def get_articles(
             # 合并公众号名称到文章列表
             article_list = []
             for article in articles:
-                article_dict = {c.name: getattr(article, c.name) for c in article.__table__.columns}
+                # Only serialize columns that actually exist in the model
+                article_dict = {}
+                for c in article.__table__.columns:
+                    # Use hasattr to safely check if attribute exists
+                    if hasattr(article, c.name):
+                        article_dict[c.name] = getattr(article, c.name)
                 article_dict["mp_name"] = mp_names.get(article.mp_id, "未知公众号")
                 article_list.append(article_dict)
 
