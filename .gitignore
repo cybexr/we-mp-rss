@@ -8,7 +8,9 @@ CLAUDE.md
 #static - REMOVED: Now building in Dockerfile, don't commit built assets
 static/
 
-#
+# sensitive files
+config.yaml
+
 __pycache__
 *.xml
 *.tmp

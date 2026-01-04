@@ -407,7 +407,61 @@ async def add_mp(
                 )
             )
 
+@router.put("/batch-category", summary="批量更新公众号分类")
+async def batch_update_category(
+    mp_ids: List[str] = Body(..., min_items=1, max_items=100),
+    category: str = Body(..., min_length=1, max_length=255),
+    current_user: dict = Depends(get_current_user)
+):
+    async with DB.async_session_factory() as session:
+        try:
+            from core.models.feed import Feed
 
+            logger.info(f"批量更新分类 - mp_ids: {mp_ids}, category: {category}")
+
+            # 直接通过 id 查询
+            result = await session.execute(
+                select(Feed).where(Feed.id.in_(mp_ids))
+            )
+            mps = result.scalars().all()
+
+            if not mps:
+                logger.warning(f"公众号不存在，未找到以下ID: {mp_ids[:3]}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_response(
+                        code=40401,
+                        message=f"公众号不存在，未找到以下ID: {mp_ids[:3]}{'...' if len(mp_ids) > 3 else ''}"
+                    )
+                )
+
+            logger.info(f"查询到 {len(mps)} 条记录，IDs: {[mp.id for mp in mps]}")
+
+            updated_count = 0
+            for mp in mps:
+                mp.category = category
+                mp.updated_at = datetime.now()
+                updated_count += 1
+
+            await session.commit()
+
+            logger.info(f"成功更新 {updated_count} 个公众号的分类为: {category}")
+
+            return success_response({
+                "updated_count": updated_count
+            })
+        except HTTPException:
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"批量更新分类错误: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_response(
+                    code=50001,
+                    message="批量更新分类失败"
+                )
+            )
 
 
 @router.put("/{mp_id}", summary="更新公众号信息")
@@ -539,60 +593,3 @@ async def delete_mp(
                     message="删除订阅号失败"
                 )
             )
-
-@router.put("/batch-category", summary="批量更新公众号分类")
-async def batch_update_category(
-    mp_ids: List[str] = Body(..., min_items=1, max_items=100),
-    category: str = Body(..., min_length=1, max_length=255),
-    current_user: dict = Depends(get_current_user)
-):
-    async with DB.async_session_factory() as session:
-        try:
-            from core.models.feed import Feed
-
-            logger.info(f"批量更新分类 - mp_ids: {mp_ids}, category: {category}")
-
-            # 直接通过 id 查询
-            result = await session.execute(
-                select(Feed).where(Feed.id.in_(mp_ids))
-            )
-            mps = result.scalars().all()
-
-            if not mps:
-                logger.warning(f"公众号不存在，未找到以下ID: {mp_ids[:3]}")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_response(
-                        code=40401,
-                        message=f"公众号不存在，未找到以下ID: {mp_ids[:3]}{'...' if len(mp_ids) > 3 else ''}"
-                    )
-                )
-
-            logger.info(f"查询到 {len(mps)} 条记录，IDs: {[mp.id for mp in mps]}")
-
-            updated_count = 0
-            for mp in mps:
-                mp.category = category
-                mp.updated_at = datetime.now()
-                updated_count += 1
-
-            await session.commit()
-
-            logger.info(f"成功更新 {updated_count} 个公众号的分类为: {category}")
-
-            return success_response({
-                "updated_count": updated_count
-            })
-        except HTTPException:
-            raise
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"批量更新分类错误: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=error_response(
-                    code=50001,
-                    message="批量更新分类失败"
-                )
-            )
-
