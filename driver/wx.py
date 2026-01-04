@@ -12,6 +12,7 @@ import asyncio
 from .cookies import expire
 import json
 from core.print import print_error,print_warning,print_info,print_success
+from typing import Any, Dict, List, Optional
 class Wx:
     _haslogin=False
     SESSION=None
@@ -131,8 +132,24 @@ class Wx:
                 print(f"登录成功，正在获取cookie和token...")
         return handle_frame_navigated
 
-    async def _wait_for_qr_code_login(self, page):
-        """等待二维码登录"""
+    async def _wait_for_qr_code_login(self, page) -> None:
+        """Wait for QR code login to complete.
+
+        This async method monitors page navigation events to detect when
+        the user has successfully scanned the QR code and logged in.
+
+        Args:
+            page: Playwright page object for the browser session
+
+        Raises:
+            TimeoutError: If login does not complete within 60 seconds
+
+        Note:
+            This method must be awaited as it performs async operations:
+            - Listens for frame navigation events
+            - Waits up to 60 seconds for login completion
+            - Updates login status using async lock
+        """
         print("等待扫码登录...")
         if self.Notice is not None:
             self.Notice()
@@ -147,15 +164,46 @@ class Wx:
             self._haslogin = True
         await setStatus(True)
 
-    async def _validate_and_update_session(self, cookies, token):
-        """验证并更新会话状态"""
+    async def _validate_and_update_session(self, cookies: List[Dict], token: str) -> bool:
+        """Validate and update the login session state.
+
+        This async method validates the session token and cookies,
+        then updates the internal login state using async locks
+        for thread safety.
+
+        Args:
+            cookies: List of cookie dictionaries from the browser session
+            token: Authentication token string
+
+        Returns:
+            bool: True if session is valid and logged in, False otherwise
+
+        Note:
+            This method must be awaited as it acquires an async lock:
+            - Formats and validates the session token
+            - Updates _haslogin state atomically
+        """
         self.SESSION = self.format_token(cookies, str(token))
         async with self._login_lock:
             self._haslogin = False if self.SESSION["expiry"] is None else True
         return self._haslogin
 
-    async def _process_login_success(self, cookies, has_extdata):
-        """处理登录成功后的逻辑"""
+    async def _process_login_success(self, cookies: List[Dict], has_extdata: bool) -> None:
+        """Process post-login logic and data extraction.
+
+        This async method handles operations after successful login,
+        including extracting WeChat public account data if requested.
+
+        Args:
+            cookies: List of cookie dictionaries to save
+            has_extdata: bool - If True, extract WeChat account data
+
+        Note:
+            This method must be awaited as it may call async extractors:
+            - Optionally extracts WeChat public account metadata
+            - Saves cookies to persistent storage
+            - Handles extraction errors gracefully
+        """
         if self._haslogin:
             try:
                 if has_extdata:
@@ -168,8 +216,26 @@ class Wx:
         else:
             print_warning("未登录！")
 
-    async def _complete_login_session(self, cookies, token, has_extdata=True):
-        """统一的登录会话完成处理"""
+    async def _complete_login_session(self, cookies: List[Dict], token: str, has_extdata: bool = True) -> Optional[Dict]:
+        """Complete login session processing.
+
+        This async method orchestrates the final steps of the login process,
+        coordinating session validation and post-login processing.
+
+        Args:
+            cookies: List of cookie dictionaries from the browser session
+            token: Authentication token string
+            has_extdata: bool - Whether to extract WeChat account data (default: True)
+
+        Returns:
+            dict: Session information containing cookies, token, and expiry, or None if failed
+
+        Note:
+            This method must be awaited as it chains multiple async operations:
+            - Validates session via async lock
+            - Processes login success logic
+            - Extracts additional account data if requested
+        """
         # 验证并更新会话状态
         await self._validate_and_update_session(cookies, token)
 
@@ -179,10 +245,27 @@ class Wx:
         # 返回会话信息
         return self.SESSION
 
-    async def switch_account(self, username: str = ""):
-        """切换账号功能
+    async def switch_account(self, username: str = "") -> bool:
+        """Switch to a different WeChat account.
+
+        This async method switches the current logged-in account to another
+        available account in the WeChat MP platform.
+
         Args:
-            username: 目标账号的用户名，如果为空则切换到其他可用账号
+            username: Target account username. If empty, switches to any available account.
+
+        Returns:
+            bool: True if account switch was successful, False otherwise
+
+        Raises:
+            Exception: If browser is not started or switching fails
+
+        Note:
+            This method must be awaited as it performs async operations:
+            - Validates login status
+            - Interacts with UI elements via Playwright
+            - Extracts and validates account credentials
+            - Updates session and cookies
         """
         print("开始切换账号...")
         try:
@@ -304,7 +387,18 @@ class Wx:
             "code":f"/{self.wx_login_url}?t={(time.time())}",
             "is_exists":self.GetHasCode(),
         }
-    async def refresh_task(self):
+    async def refresh_task(self) -> None:
+        """Refresh the browser session and validate login status.
+
+        This async method refreshes the browser page and checks if the
+        login session is still valid.
+
+        Raises:
+            Exception: If login has expired or browser is closed
+
+        Note:
+            This method must be awaited as it performs async browser operations.
+        """
         try:
             self.controller.driver.refresh()
             await self.Call_Success()
@@ -314,10 +408,33 @@ class Wx:
                 raise Exception(f"登录已经失效，请重新登录")
         except Exception as e:
             raise Exception(f"浏览器关闭")  # 重新抛出异常以便外部捕获处理
-    async def HasLogin(self):
+    async def HasLogin(self) -> bool:
+        """Check if currently logged in.
+
+        This async method provides a thread-safe check of the login status
+        using async locks.
+
+        Returns:
+            bool: True if logged in, False otherwise
+
+        Note:
+            This method must be awaited as it acquires an async lock.
+        """
         async with self._login_lock:
             return self._haslogin
-    async def schedule_refresh(self):
+    async def schedule_refresh(self) -> None:
+        """Schedule periodic refresh of the login session.
+
+        This async method sets up a recursive task that periodically refreshes
+        the browser session to keep the login active.
+
+        Note:
+            This method must be awaited and creates a recursive async task:
+            - Checks if refresh is enabled (refresh_interval > 0)
+            - Validates login status before refreshing
+            - Sleeps for refresh_interval between refreshes
+            - Reschedules itself recursively
+        """
         if self.refresh_interval <= 0:
             return
 
@@ -334,7 +451,26 @@ class Wx:
         except Exception as e:
             print_error(f"定时刷新任务失败: {str(e)}")
             # 不再抛出异常，避免无限循环
-    async def Token(self, callback=None,isClose=True) -> dict | None:
+    async def Token(self, callback: Any = None, isClose: bool = True) -> Optional[Dict]:
+        """Perform token-based authentication.
+
+        This async method uses a stored token to authenticate with WeChat MP,
+        validates the session, and updates cookies.
+
+        Args:
+            callback: Optional callback function to execute on success
+            isClose: bool - Whether to close the browser after completion (default: True)
+
+        Returns:
+            dict | None: Session information if successful, None otherwise
+
+        Note:
+            This method must be awaited as it performs async operations:
+            - Starts browser if not already running
+            - Loads and adds cookies
+            - Navigates to WeChat MP home
+            - Validates login status
+        """
         try:
             self.CallBack = callback
             if not await getStatus():
@@ -393,15 +529,35 @@ class Wx:
                 except Exception as e:
                     print(f"二维码图片获取失败: {str(e)}")
         return self.isLock
-    async def wxLogin(self, CallBack=None, NeedExit=True):
-        """
-        微信公众平台登录流程：
-        1. 检查依赖和环境
-        2. 打开微信公众平台
-        3. 全屏截图保存二维码
-        4. 等待用户扫码登录
-        5. 获取登录后的cookie和token
-        6. 启动定时刷新线程(默认30分钟刷新一次)
+    async def wxLogin(self, CallBack: Any = None, NeedExit: bool = True) -> Optional[Dict]:
+        """Perform WeChat MP login using QR code.
+
+        This async method orchestrates the complete login flow:
+        1. Checks dependencies and environment
+        2. Opens WeChat MP login page
+        3. Captures and saves QR code
+        4. Waits for user to scan QR code
+        5. Extracts cookies and token after login
+        6. Starts periodic refresh task
+
+        Args:
+            CallBack: Optional callback function to execute on successful login
+            NeedExit: bool - Whether to close browser on completion (default: True)
+
+        Returns:
+            dict | None: Session information if login successful, None otherwise
+
+        Raises:
+            asyncio.TimeoutError: If QR code scan times out after 60 seconds
+            Exception: For other login failures
+
+        Note:
+            This method must be awaited as it performs extensive async operations:
+            - Starts browser and navigates to login page
+            - Takes screenshot of QR code
+            - Monitors page navigation for login completion
+            - Extracts session data (cookies, token)
+            - Optionally schedules periodic refresh
         """
             
         # 使用上下文管理器确保资源清理
@@ -468,7 +624,7 @@ class Wx:
             if NeedExit :
                 await self.controller.cleanup()
         return self.SESSION
-    def format_token(self, cookies: list, token: str = ""):
+    def format_token(self, cookies: List[Dict], token: str = "") -> Dict:
         cookies_str=""
         for cookie in cookies:
             # print(f"{cookie['name']}={cookie['value']}")
@@ -484,8 +640,25 @@ class Wx:
                 'wx_login_url': self.wx_login_url,
                 'expiry': cookie_expiry
             }
-    async def Call_Success(self,has_extdata=True):
-        """处理登录成功后的回调逻辑"""
+    async def Call_Success(self, has_extdata: bool = True) -> Optional[Dict]:
+        """Handle successful login callback logic.
+
+        This async method processes successful authentication by extracting
+        session data and executing any registered callbacks.
+
+        Args:
+            has_extdata: bool - Whether to extract WeChat account data (default: True)
+
+        Returns:
+            dict | None: Session information if successful, None otherwise
+
+        Note:
+            This method must be awaited as it:
+            - Extracts token from page
+            - Retrieves all cookies asynchronously
+            - Completes login session processing
+            - Executes registered callback
+        """
         if not hasattr(self, 'controller') or self.controller is None:
             print_error("浏览器控制器未初始化")
             return None
@@ -505,8 +678,28 @@ class Wx:
 
         return result 
 
-    async def _extract_wechat_data(self):
-        """提取微信公众号数据，使用更健壮的选择器"""
+    async def _extract_wechat_data(self) -> Dict[str, str]:
+        """Extract WeChat public account data using robust selectors.
+
+        This async method scrapes account metadata from the WeChat MP dashboard
+        using multiple fallback selectors for reliability.
+
+        Returns:
+            dict: Mapping of field names to values:
+                - wx_app_name: Account name
+                - wx_logo: Account logo URL
+                - wx_read_yesterday: Yesterday's read count
+                - wx_share_yesterday: Yesterday's share count
+                - wx_watch_yesterday: Yesterday's watch count
+                - wx_yuan_count: Original article count
+                - wx_user_count: Total user count
+
+        Note:
+            This method must be awaited as it performs async DOM queries:
+            - Uses multiple fallback selectors per field
+            - Waits for elements to be visible
+            - Handles missing data gracefully
+        """
         # 优先使用临时控制器，其次使用默认控制器
         controller = getattr(self, '_temp_controller', None) or self.controller
         
@@ -568,8 +761,19 @@ class Wx:
                 
         return data
     
-    async def cleanup_resources(self):
-        """清理所有相关资源"""
+    async def cleanup_resources(self) -> bool:
+        """Clean up all related resources.
+
+        This async method performs cleanup operations including:
+        - Removing temporary files (QR code)
+        - Resetting login state flags
+
+        Returns:
+            bool: True if cleanup successful, False otherwise
+
+        Note:
+            This method must be awaited as it acquires an async lock.
+        """
         try:
             # 清理临时文件
             self.Clean()
@@ -584,19 +788,43 @@ class Wx:
         except Exception as e:
             return False
 
-    async def __aenter__(self):
-        """异步上下文管理器入口"""
+    async def __aenter__(self) -> "Wx":
+        """Async context manager entry point.
+
+        Returns:
+            Wx: The Wx instance itself
+        """
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """异步上下文管理器出口，确保资源清理"""
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit point.
+
+        Args:
+            exc_type: Exception type if an exception was raised
+            exc_val: Exception value if an exception was raised
+            exc_tb: Exception traceback if an exception was raised
+
+        Note:
+            Ensures resources are cleaned up on exit.
+        """
         await self.cleanup_resources()
         if hasattr(self, 'controller') and self.controller is not None:
             await self.controller.cleanup()
         return False
             
     async def Close(self) -> bool:
-        rel=False
+        """Close the browser controller.
+
+        This async method safely closes the browser controller if it exists.
+
+        Returns:
+            bool: True if successfully closed, False otherwise
+
+        Note:
+            This method must be awaited and handles cases where controller
+            is not initialized or already closed gracefully.
+        """
+        rel = False
         try:
             if hasattr(self, 'controller') and self.controller is not None:
                 await self.controller.Close()
@@ -605,7 +833,12 @@ class Wx:
             print_warning("浏览器未启动或已关闭")
             pass
         return rel
-    def Clean(self):
+    def Clean(self) -> None:
+        """Clean up temporary files.
+
+        Removes the QR code image file if it exists. Handles errors gracefully
+        to prevent cleanup failures from breaking the application.
+        """
         try:
             os.remove(self.wx_login_url)
         except FileNotFoundError:
@@ -618,8 +851,15 @@ class Wx:
         finally:
            pass
            
-    def expire_all_cookies(self):
-        """设置所有cookie为过期状态"""
+    def expire_all_cookies(self) -> bool:
+        """Expire all cookies in the browser context.
+
+        Clears all stored cookies from the browser context to log out
+        or reset the session.
+
+        Returns:
+            bool: True if cookies were cleared successfully, False otherwise
+        """
         try:
             if hasattr(self, 'controller') and hasattr(self.controller, 'context'):
                 self.controller.context.clear_cookies()
@@ -631,19 +871,37 @@ class Wx:
             print(f"设置cookie过期时出错: {str(e)}")
             return False
             
-    async def check_lock(self):
-        """检查锁定状态"""
+    async def check_lock(self) -> bool:
+        """Check if login process is locked.
+
+        This async method checks if a login operation is currently in progress
+        by verifying the existence of a lock file or QR code.
+
+        Returns:
+            bool: True if locked (login in progress), False otherwise
+
+        Note:
+            This method must be awaited as it includes an async sleep.
+        """
         await asyncio.sleep(1)
         return os.path.exists(self.lock_file_path) or self.GetHasCode()
         
-    def set_lock(self):
-        """创建锁定文件"""
+    def set_lock(self) -> None:
+        """Create lock file to prevent concurrent logins.
+
+        Writes a timestamp to the lock file to indicate that a login
+        operation is in progress.
+        """
         with open(self.lock_file_path, 'w') as f:
             f.write(str(time.time()))
         self.isLOCK = True
         
-    def release_lock(self):
-        """删除锁定文件"""
+    def release_lock(self) -> bool:
+        """Release the login lock by removing the lock file.
+
+        Returns:
+            bool: True if lock was released successfully, False otherwise
+        """
         try:
             os.remove(self.lock_file_path)
             self.isLOCK = False
