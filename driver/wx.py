@@ -267,7 +267,10 @@ class Wx:
                 "name": "token",
                 "value": token,
                 "domain": ".weixin.qq.com",
-                "path": "/"
+                "path": "/",
+                "secure": True,      # 仅通过HTTPS传输
+                "httpOnly": True,    # 防止JavaScript访问
+                "sameSite": "Strict" # 防止CSRF攻击
             }
             await controller.add_cookie(token_cookie)
             page=controller.page
