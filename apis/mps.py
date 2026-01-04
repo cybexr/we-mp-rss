@@ -593,11 +593,29 @@ async def batch_update_category(
                 for feed in all_feeds:
                     print(f"  id={feed[0]}, faker_id={feed[1]}, mp_name={feed[2]}")
 
+                # Count total feeds
+                count_result = await session.execute(select(func.count(Feed.id)))
+                total_count = count_result.scalar()
+                print(f"[DEBUG] 数据库中Feed总数: {total_count}")
+
+                # Construct helpful error message
+                not_found_ids = mp_ids
+                error_msg = f"公众号不存在 (数据库中共有 {total_count} 个公众号)"
+
+                if total_count == 0:
+                    error_msg += ". 数据库为空！请检查数据库连接配置或初始化数据"
+                elif total_count < 10:
+                    # Show all existing IDs if database has few records
+                    existing_ids = [f[0] for f in all_feeds]
+                    error_msg += f". 现有ID: {existing_ids[:5]}"
+
+                error_msg += f". 未找到以下ID: {not_found_ids[:3]}{'...' if len(not_found_ids) > 3 else ''}"
+
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=error_response(
                         code=40401,
-                        message=f"公众号不存在，请检查选中的公众号是否存在。未找到以下ID: {mp_ids}"
+                        message=error_msg
                     )
                 )
 
