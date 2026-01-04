@@ -20,6 +20,11 @@ from playwright.async_api import async_playwright
 # 导入反爬虫配置
 from .anti_crawler_config import AntiCrawlerConfig
 
+
+# 辅助函数：用于中止图片加载的路由处理器
+async def _abort_images(route):
+    await route.abort()
+
 class PlaywrightController:
     def __init__(self):
         self.system = platform.system().lower()
@@ -114,11 +119,11 @@ class PlaywrightController:
             #     self.page.set_viewport_size({"width": 1920, "height": 1080})
 
             if dis_image:
-                self.context.route("**/*.{png,jpg,jpeg}", lambda route: route.abort())
+                await self.context.route("**/*.{png,jpg,jpeg}", _abort_images)
 
             # 应用反爬虫脚本
             if anti_crawler:
-                self._apply_anti_crawler_scripts()
+                await self._apply_anti_crawler_scripts()
 
             self.isClose = False
             return self.page

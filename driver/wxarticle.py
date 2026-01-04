@@ -264,7 +264,7 @@ class WXArticleFetcher:
             # 等待页面加载
             # page.wait_for_load_state("networkidle")
             # body = page.evaluate('() => document.body.innerText')
-            body= await (await page.locator("body")).text_content()
+            body = await page.locator("body").text_content()
             body = body.strip()
 
             info["content"]=body
@@ -296,13 +296,13 @@ class WXArticleFetcher:
             
 
             # 获取标题
-            title = await (await page.locator('meta[property="og:title"]')).get_attribute("content")
+            title = await page.locator('meta[property="og:title"]').get_attribute("content")
             #获取作者
-            author = await (await page.locator('meta[property="og:article:author"]')).get_attribute("content")
+            author = await page.locator('meta[property="og:article:author"]').get_attribute("content")
             #获取描述
-            description = await (await page.locator('meta[property="og:description"]')).get_attribute("content")
+            description = await page.locator('meta[property="og:description"]').get_attribute("content")
             #获取题图
-            topic_image = await (await page.locator('meta[property="twitter:image"]')).get_attribute("content")
+            topic_image = await page.locator('meta[property="twitter:image"]').get_attribute("content")
 
             self.export_to_pdf(f"./data/{title}.pdf")
             if title=="":
@@ -311,12 +311,12 @@ class WXArticleFetcher:
           
          
             # 获取正文内容和图片
-            content_element = await page.locator("#js_content")
+            content_element = page.locator("#js_content")
             content = await content_element.inner_html()
 
             #获取图集内容
             if content=="":
-                content_element = await page.locator("#js_article")
+                content_element = page.locator("#js_article")
                 content = await content_element.inner_html()
 
             content=self.clean_article_content(str(content))
@@ -336,7 +336,7 @@ class WXArticleFetcher:
             try:
 
                 #获取发布时间
-                publish_time_str = await (await page.locator("#publish_time")).text_content()
+                publish_time_str = await page.locator("#publish_time").text_content()
                 publish_time_str = publish_time_str.strip()
                 # 将发布时间转换为时间戳
                 publish_time = self.convert_publish_time_to_timestamp(publish_time_str)
