@@ -13,7 +13,8 @@ import os
 from driver.success import getStatus
 from driver.store import Store
 import re
-from threading import Timer, Lock
+from threading import Timer
+import asyncio
 from .cookies import expire
 import json
 from core.print import print_error,print_warning,print_info,print_success
@@ -29,8 +30,8 @@ class Wx:
     CallBack=None
     Notice=None
     ext_data = None
-    # 添加线程锁保护共享变量
-    _login_lock = Lock()
+    # 添加异步锁保护共享变量
+    _login_lock = asyncio.Lock()
     def __init__(self):
         self.lock_path=os.path.dirname(self.lock_file_path)
         self.refresh_interval=3660*24
@@ -81,20 +82,20 @@ class Wx:
         except Exception as e:
             print(f"提取token时出错: {str(e)}")
             return None
-    def switch_account(self, username: str = ""):
+    async def switch_account(self, username: str = ""):
         """切换账号功能
         Args:
             username: 目标账号的用户名，如果为空则切换到其他可用账号
         """
         print("开始切换账号...")
         try:
-            self.Token(isClose=False)
+            await self.Token(isClose=False)
             if self._haslogin is False:
-                self.Close()
+                await self.Close()
                 self.GetCode(Success)
-                time.sleep(60)
+                await asyncio.sleep(60)
                 return False
-            time.sleep(1)
+            await asyncio.sleep(1)
             if not hasattr(self, 'controller') or not self.controller.page:
                 print_error("浏览器未启动，无法切换账号")
                 return False
@@ -108,7 +109,7 @@ class Wx:
             account_info = page.locator(".weui-desktop-account__info")
             if account_info.count() > 0:
                 account_info.click()
-                time.sleep(1)
+                await asyncio.sleep(1)
                 
                 # 等待账号面板显示
                 account_panel = page.locator(".account_box-panel")
@@ -118,7 +119,7 @@ class Wx:
                     if switch_account_link.count() > 0:
                         print_info("找到切换账号按钮，点击切换...")
                         switch_account_link.click()
-                        time.sleep(3)
+                        await asyncio.sleep(3)
                         
                         try:
                             # 查找可切换的账号（排除当前登录账号）
@@ -132,7 +133,7 @@ class Wx:
                             if account_count > 0:
                                 # 点击第一个可切换的账号
                                 random_index = random.randint(0, account_count - 1)
-                                time.sleep(1)
+                                await asyncio.sleep(1)
                                 p=accounts.nth(random_index).locator("p")
                                 nick_name=accounts.nth(random_index).locator(".section-item__nickname")
                                 account_id=p.text_content()
@@ -141,15 +142,15 @@ class Wx:
                                 p.click()
                                 # 等待页面加载并验证切换成功
                                 page.wait_for_load_state("networkidle", timeout=10000)
-                                time.sleep(2)
-                                self.Call_Success(has_extdata=False)
+                                await asyncio.sleep(2)
+                                await self.Call_Success(has_extdata=False)
 
-                                self.Token(isClose=False)
+                                await self.Token(isClose=False)
                                 print_success("账号切换成功")
                                 from jobs.notice import sys_notice
                                 from core.config import cfg
                                 try:
-                                    cookies = self.controller.get_cookies()
+                                    cookies = await self.controller.get_cookies()
                                     exp=self.format_token(cookies)
                                     exp_time=exp["expiry"]["expiry_time"]
                                     token=exp["token"]
@@ -158,7 +159,7 @@ class Wx:
                                     exp_time="-"
                                     token="-"
                                     pass
-                                self.Close()
+                                await self.Close()
                                 sys_notice(f"账号切换成功\n- 账号名称: {account_name} \n- 账号ID: {account_id} \n - Token: {token} \n- 过期时间: {exp_time}", str(cfg.get("server.code_title","WeRss账号切换成功")))
                                 return True
                             else:
@@ -185,10 +186,10 @@ class Wx:
                 "msg":"微信公众平台登录脚本正在运行，请勿重复运行！"}
        
         self.Clean()
-        print("子线程执行中")
-        from core.thread import ThreadManager
-        self.thread = ThreadManager(target=self.wxLogin,args=(CallBack,True))  # 传入函数名
-        self.thread.start()  # 启动线程
+        print("异步任务执行中")
+        import asyncio
+        # 创建后台异步任务执行登录
+        asyncio.create_task(self.wxLogin(CallBack, True))
         from core.ver import VERSION
         print(f"微信公众平台登录 v{VERSION}")
         return WX_API.QRcode()
@@ -209,46 +210,46 @@ class Wx:
                 raise Exception(f"登录已经失效，请重新登录")
         except Exception as e:
             raise Exception(f"浏览器关闭")  # 重新抛出异常以便外部捕获处理
-    def HasLogin(self):
-        with self._login_lock:
+    async def HasLogin(self):
+        async with self._login_lock:
             return self._haslogin
-    def schedule_refresh(self):
+    async def schedule_refresh(self):
         if self.refresh_interval <= 0:
             return
-            
-        with self._login_lock:
+
+        async with self._login_lock:
             if not self._haslogin or not hasattr(self, 'controller') or self.controller is None:
                 return
-                
+
         try:
             self.refresh_task()
             # 使用守护线程避免资源泄露
-            timer = Timer(self.refresh_interval, self.schedule_refresh)
+            timer = Timer(self.refresh_interval, lambda: asyncio.create_task(self.schedule_refresh()))
             timer.daemon = True
             timer.start()
         except Exception as e:
             print_error(f"定时刷新任务失败: {str(e)}")
             # 不再抛出异常，避免无限循环
-    def Token(self, callback=None,isClose=True):
+    async def Token(self, callback=None,isClose=True) -> dict | None:
         try:
             self.CallBack = callback
             if not getStatus():
                 print_warning("登录状态检查失败")
                 return None
-                
-                
+
+
             from driver.token import wx_cfg
             token = str(wx_cfg.get("token", ""))
             if not token:
                 print_warning("未找到有效的token")
                 return None
-            
+
             # 创建新的控制器实例避免线程冲突
             controller=self.controller
             if not  controller.is_browser_started():
-                controller.start_browser()    
-            controller.open_url(f"{self.WX_HOME}?t=home/index&lang=zh_CN&token={token}")
-            
+                await controller.start_browser()
+            await controller.open_url(f"{self.WX_HOME}?t=home/index&lang=zh_CN&token={token}")
+
             cookie = Store.load()
             if cookie:
                 # 为每个cookie添加必要的domain字段
@@ -257,25 +258,25 @@ class Wx:
                         c['domain'] = '.weixin.qq.com'
                     if 'path' not in c:
                         c['path'] = '/'
-                controller.add_cookies(cookie)
+                await controller.add_cookies(cookie)
             # 为单个token cookie添加必要的字段
             token_cookie = {
-                "name": "token", 
+                "name": "token",
                 "value": token,
                 "domain": ".weixin.qq.com",
                 "path": "/"
             }
-            controller.add_cookie(token_cookie)
+            await controller.add_cookie(token_cookie)
             page=controller.page
             qrcode = page.locator("#jumpUrl")
             qrcode.wait_for(state="visible", timeout=self.wait_time * 1000)
             qrcode.click()
-            time.sleep(2)
+            await asyncio.sleep(2)
             hasLogin=page.locator("body:has-text('使用账号登录')")
             if hasLogin.count()>0:
                 self._haslogin=False
                 return False
-            return self.Call_Success()
+            return await self.Call_Success()
         except ImportError as e:
             print_error(f"导入模块失败: {str(e)}")
             return None
@@ -285,7 +286,7 @@ class Wx:
         finally:
             # 不在这里清理，让Call_Success处理清理
             if isClose:
-                self.controller.cleanup()
+                await self.controller.cleanup()
             pass
     def isLock(self):             
         if self.isLock:
@@ -296,7 +297,7 @@ class Wx:
                 except Exception as e:
                     print(f"二维码图片获取失败: {str(e)}")
         return self.isLock
-    def wxLogin(self, CallBack=None, NeedExit=True):
+    async def wxLogin(self, CallBack=None, NeedExit=True):
         """
         微信公众平台登录流程：
         1. 检查依赖和环境
@@ -314,20 +315,20 @@ class Wx:
                 return None
                 
             self.set_lock()
-            
-            with self._login_lock:
+
+            async with self._login_lock:
                 self._haslogin = False
                 
             # 清理现有资源
-            self.cleanup_resources()
+            await self.cleanup_resources()
             
             self.controller=PlaywrightController()
             # 初始化浏览器控制器
             driver=self.controller
             # 启动浏览器并打开微信公众平台
             print_info("正在启动浏览器...")
-            driver.start_browser()
-            driver.open_url(self.WX_LOGIN)
+            await driver.start_browser()
+            await driver.open_url(self.WX_LOGIN)
             page=driver.page
 
             # from playwright.sync_api import sync_playwright
@@ -370,11 +371,11 @@ class Wx:
             page.wait_for_event("framenavigated", timeout=60 * 1000)
            
             from .success import setStatus
-            with self._login_lock:
+            async with self._login_lock:
                 self._haslogin=True
             setStatus(True)
             self.CallBack=CallBack
-            self.Call_Success()
+            await self.Call_Success()
         except Exception as e:
             if "Timeout" in str(e):
                 print_warning("\n扫码登录超时，请重新运行程序进行扫码登录")
@@ -385,7 +386,7 @@ class Wx:
         finally:
             self.release_lock()
             if NeedExit :
-                self.Close()
+                await self.controller.cleanup()
         return self.SESSION
     def format_token(self, cookies: list, token: str = ""):
         cookies_str=""
@@ -403,20 +404,20 @@ class Wx:
                 'wx_login_url': self.wx_login_url,
                 'expiry': cookie_expiry
             }
-    def Call_Success(self,has_extdata=True):
+    async def Call_Success(self,has_extdata=True):
         """处理登录成功后的回调逻辑"""
         if not hasattr(self, 'controller') or self.controller is None:
             print_error("浏览器控制器未初始化")
             return None
-            
+
         # 获取token
         token = self.extract_token_from_requests()
 
         # 获取当前所有cookie
-        cookies = self.controller.get_cookies()
+        cookies = await self.controller.get_cookies()
         # print("\n获取到的Cookie:")
         self.SESSION=self.format_token(cookies,str(token))
-        with self._login_lock:
+        async with self._login_lock:
             self._haslogin=False if self.SESSION["expiry"] is None else True
         # 登录成功后不立即清理二维码，保持浏览器运行
         if  self._haslogin:
@@ -501,27 +502,27 @@ class Wx:
                 
         return data
     
-    def cleanup_resources(self):
+    async def cleanup_resources(self):
         """清理所有相关资源"""
         try:
             # 清理临时文件
             self.Clean()
-                
+
             # 重置状态
-            with self._login_lock:
+            async with self._login_lock:
                 self._haslogin = False
                 self.HasCode = False
-                
+
             print_info("资源清理完成")
             return True
         except Exception as e:
             return False
             
-    def Close(self):
+    async def Close(self) -> bool:
         rel=False
         try:
             if hasattr(self, 'controller') and self.controller is not None:
-                self.controller.Close()
+                await self.controller.Close()
                 rel=True
         except Exception as e:
             print_warning("浏览器未启动或已关闭")
@@ -548,9 +549,9 @@ class Wx:
             print(f"设置cookie过期时出错: {str(e)}")
             return False
             
-    def check_lock(self):
+    async def check_lock(self):
         """检查锁定状态"""
-        time.sleep(1)
+        await asyncio.sleep(1)
         return os.path.exists(self.lock_file_path) or self.GetHasCode()
         
     def set_lock(self):
