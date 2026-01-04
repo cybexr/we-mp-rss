@@ -13,7 +13,6 @@ import os
 from driver.success import getStatus
 from driver.store import Store
 import re
-from threading import Timer
 import asyncio
 from .cookies import expire
 import json
@@ -145,7 +144,7 @@ class Wx:
                                 # 验证输入数据
                                 if not account_id or not account_name:
                                     print_error("账号数据获取失败: ID或名称为空")
-                                    continue
+                                    return False
 
                                 # 清理和验证字符串
                                 account_id = str(account_id).strip()
@@ -154,13 +153,13 @@ class Wx:
                                 # 长度验证
                                 if len(account_id) > 100 or len(account_name) > 200:
                                     print_error(f"账号数据长度异常: ID长度={len(account_id)}, 名称长度={len(account_name)}")
-                                    continue
+                                    return False
 
                                 # 字符验证 (仅允许中文、字母、数字、常见符号)
                                 import re
                                 if not re.match(r'^[\w\u4e00-\u9fff\s\-_.]+$', account_name):
                                     print_error(f"账号名称包含非法字符: {account_name}")
-                                    continue
+                                    return False
 
                                 print(f"账号: {account_name} ID:{account_id}")
                                 p.click()
@@ -246,11 +245,11 @@ class Wx:
                 return
 
         try:
-            self.refresh_task()
-            # 使用守护线程避免资源泄露
-            timer = Timer(self.refresh_interval, lambda: asyncio.create_task(self.schedule_refresh()))
-            timer.daemon = True
-            timer.start()
+            await self.refresh_task()
+            # 使用 asyncio.sleep 替代 threading.Timer
+            await asyncio.sleep(self.refresh_interval)
+            # 递归调用实现定时刷新
+            asyncio.create_task(self.schedule_refresh())
         except Exception as e:
             print_error(f"定时刷新任务失败: {str(e)}")
             # 不再抛出异常，避免无限循环

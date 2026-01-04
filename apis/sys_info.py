@@ -104,9 +104,9 @@ async def get_system_info(
             'need_update':CORE_VERSION != LATEST_VERSION,
             "wx":{
                 'token':wx_cfg.get('token',''),
-                'expiry_time':wx_cfg.get('expiry.expiry_time','') if getStatus() else "",
-                "info":getLoginInfo(),
-                "login":getStatus(),
+                'expiry_time':wx_cfg.get('expiry.expiry_time','') if await getStatus() else "",
+                "info":await getLoginInfo(),
+                "login":await getStatus(),
             },
             "article":get_article_info(),
             'queue':TaskQueue.get_queue_info(),
