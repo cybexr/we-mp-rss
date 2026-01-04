@@ -84,6 +84,106 @@ class Wx:
             import logging
             logging.error(f"Token extraction error: {str(e)}", exc_info=True)
             return None
+
+    def _validate_account_credentials(self, account_id, account_name):
+        """验证账号凭据"""
+        if not account_id or not account_name:
+            print_error("账号数据获取失败: ID或名称为空")
+            return False
+
+        account_id = str(account_id).strip()
+        account_name = str(account_name).strip()
+
+        if len(account_id) > 100 or len(account_name) > 200:
+            print_error(f"账号数据长度异常: ID长度={len(account_id)}, 名称长度={len(account_name)}")
+            return False
+
+        if not re.match(r'^[\w\u4e00-\u9fff\s\-_.]+$', account_name):
+            print_error(f"账号名称包含非法字符: {account_name}")
+            return False
+
+        return True
+
+    def _prepare_cookies_for_storage(self, cookies):
+        """为cookie添加必要的domain和path字段"""
+        if not cookies:
+            return cookies
+
+        for c in cookies:
+            if 'domain' not in c:
+                c['domain'] = '.weixin.qq.com'
+            if 'path' not in c:
+                c['path'] = '/'
+        return cookies
+
+    def _create_token_cookie(self, token):
+        """创建token cookie"""
+        return {
+            "name": "token",
+            "value": token,
+            "domain": ".weixin.qq.com",
+            "path": "/",
+            "secure": True,      # 仅通过HTTPS传输
+            "httpOnly": True,    # 防止JavaScript访问
+            "sameSite": "Strict" # 防止CSRF攻击
+        }
+
+    def _create_frame_navigation_handler(self):
+        """创建frame导航处理器"""
+        def handle_frame_navigated(frame):
+            current_url = frame.url
+            if self.WX_HOME in current_url:
+                print(f"登录成功，正在获取cookie和token...")
+        return handle_frame_navigated
+
+    async def _wait_for_qr_code_login(self, page):
+        """等待二维码登录"""
+        print("等待扫码登录...")
+        if self.Notice is not None:
+            self.Notice()
+
+        # 监听页面导航事件
+        handler = self._create_frame_navigation_handler()
+        page.on('framenavigated', handler)
+        page.wait_for_event("framenavigated", timeout=60 * 1000)
+
+        from .success import setStatus
+        async with self._login_lock:
+            self._haslogin = True
+        await setStatus(True)
+
+    async def _validate_and_update_session(self, cookies, token):
+        """验证并更新会话状态"""
+        self.SESSION = self.format_token(cookies, str(token))
+        async with self._login_lock:
+            self._haslogin = False if self.SESSION["expiry"] is None else True
+        return self._haslogin
+
+    async def _process_login_success(self, cookies, has_extdata):
+        """处理登录成功后的逻辑"""
+        if self._haslogin:
+            try:
+                if has_extdata:
+                    self.ext_data = await self._extract_wechat_data()
+            except Exception as e:
+                print_error(f"获取公众号信息失败: {str(e)}")
+                self.ext_data = None
+            Store.save(cookies)
+            print_success("登录成功！")
+        else:
+            print_warning("未登录！")
+
+    async def _complete_login_session(self, cookies, token, has_extdata=True):
+        """统一的登录会话完成处理"""
+        # 验证并更新会话状态
+        await self._validate_and_update_session(cookies, token)
+
+        # 处理登录成功后的逻辑
+        await self._process_login_success(cookies, has_extdata)
+
+        # 返回会话信息
+        return self.SESSION
+
     async def switch_account(self, username: str = ""):
         """切换账号功能
         Args:
@@ -142,24 +242,12 @@ class Wx:
                                 account_name=await nick_name.text_content()
 
                                 # 验证输入数据
-                                if not account_id or not account_name:
-                                    print_error("账号数据获取失败: ID或名称为空")
+                                if not self._validate_account_credentials(account_id, account_name):
                                     return False
 
-                                # 清理和验证字符串
+                                # 清理字符串
                                 account_id = str(account_id).strip()
                                 account_name = str(account_name).strip()
-
-                                # 长度验证
-                                if len(account_id) > 100 or len(account_name) > 200:
-                                    print_error(f"账号数据长度异常: ID长度={len(account_id)}, 名称长度={len(account_name)}")
-                                    return False
-
-                                # 字符验证 (仅允许中文、字母、数字、常见符号)
-                                import re
-                                if not re.match(r'^[\w\u4e00-\u9fff\s\-_.]+$', account_name):
-                                    print_error(f"账号名称包含非法字符: {account_name}")
-                                    return False
 
                                 print(f"账号: {account_name} ID:{account_id}")
                                 p.click()
@@ -276,22 +364,11 @@ class Wx:
             cookie = Store.load()
             if cookie:
                 # 为每个cookie添加必要的domain字段
-                for c in cookie:
-                    if 'domain' not in c:
-                        c['domain'] = '.weixin.qq.com'
-                    if 'path' not in c:
-                        c['path'] = '/'
+                cookie = self._prepare_cookies_for_storage(cookie)
                 await controller.add_cookies(cookie)
+
             # 为单个token cookie添加必要的字段
-            token_cookie = {
-                "name": "token",
-                "value": token,
-                "domain": ".weixin.qq.com",
-                "path": "/",
-                "secure": True,      # 仅通过HTTPS传输
-                "httpOnly": True,    # 防止JavaScript访问
-                "sameSite": "Strict" # 防止CSRF攻击
-            }
+            token_cookie = self._create_token_cookie(token)
             await controller.add_cookie(token_cookie)
             page=controller.page
             qrcode = page.locator("#jumpUrl")
@@ -383,23 +460,10 @@ class Wx:
             self.HasCode=True
             if os.path.getsize(self.wx_login_url)<=364:
                 raise Exception("二维码图片获取失败，请重新扫码")
+
             # 等待登录成功（检测二维码图片加载完成）
-            print("等待扫码登录...")
-            if self.Notice is not None:
-                self.Notice()
-           
-            # # 监听页面导航事件
-            def handle_frame_navigated(frame):
-                current_url = frame.url
-                if self.WX_HOME in current_url:
-                    print(f"登录成功，正在获取cookie和token...")
-            page.on('framenavigated', handle_frame_navigated)
-            page.wait_for_event("framenavigated", timeout=60 * 1000)
-           
-            from .success import setStatus
-            async with self._login_lock:
-                self._haslogin=True
-            await setStatus(True)
+            await self._wait_for_qr_code_login(page)
+
             self.CallBack=CallBack
             await self.Call_Success()
         except Exception as e:
@@ -441,29 +505,15 @@ class Wx:
 
         # 获取当前所有cookie
         cookies = await self.controller.get_cookies()
-        # print("\n获取到的Cookie:")
-        self.SESSION=self.format_token(cookies,str(token))
-        async with self._login_lock:
-            self._haslogin=False if self.SESSION["expiry"] is None else True
-        # 登录成功后不立即清理二维码，保持浏览器运行
-        if  self._haslogin:
-            try:
-            # 使用更健壮的选择器定位元素
-                if has_extdata:
-                    self.ext_data = await self._extract_wechat_data()
-            except Exception as e:
-                print_error(f"获取公众号信息失败: {str(e)}")
-                self.ext_data = None
-            Store.save(cookies)
-            print_success("登录成功！")
-        else:
-            print_warning("未登录！")
-        
-        # print(cookie_expiry)
-        if self.CallBack is not None:
-            self.CallBack(self.SESSION,self.ext_data)
 
-        return self.SESSION 
+        # 使用统一的登录会话完成处理
+        result = await self._complete_login_session(cookies, token, has_extdata)
+
+        # 执行回调
+        if self.CallBack is not None:
+            self.CallBack(self.SESSION, self.ext_data)
+
+        return result 
 
     async def _extract_wechat_data(self):
         """提取微信公众号数据，使用更健壮的选择器"""
