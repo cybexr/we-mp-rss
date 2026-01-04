@@ -80,7 +80,10 @@ class Wx:
                     
             return None
         except Exception as e:
-            print(f"提取token时出错: {str(e)}")
+            print_error(f"提取token失败 (错误代码: TOKEN_EXTRACT_001)")
+            # Log full error details server-side only
+            import logging
+            logging.error(f"Token extraction error: {str(e)}", exc_info=True)
             return None
     async def switch_account(self, username: str = ""):
         """切换账号功能
@@ -424,7 +427,7 @@ class Wx:
             try:
             # 使用更健壮的选择器定位元素
                 if has_extdata:
-                    self.ext_data = self._extract_wechat_data()
+                    self.ext_data = await self._extract_wechat_data()
             except Exception as e:
                 print_error(f"获取公众号信息失败: {str(e)}")
                 self.ext_data = None
