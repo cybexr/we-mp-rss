@@ -107,8 +107,8 @@ class Wx:
             
             # 点击账号信息区域打开账号面板
             account_info = page.locator(".weui-desktop-account__info")
-            if account_info.count() > 0:
-                account_info.click()
+            if await account_info.count() > 0:
+                await account_info.click()
                 await asyncio.sleep(1)
                 
                 # 等待账号面板显示
@@ -136,8 +136,8 @@ class Wx:
                                 await asyncio.sleep(1)
                                 p=accounts.nth(random_index).locator("p")
                                 nick_name=accounts.nth(random_index).locator(".section-item__nickname")
-                                account_id=p.text_content()
-                                account_name=nick_name.text_content()
+                                account_id=await p.text_content()
+                                account_name=await nick_name.text_content()
                                 print(f"账号: {account_name} ID:{account_id}")
                                 p.click()
                                 # 等待页面加载并验证切换成功
@@ -160,7 +160,7 @@ class Wx:
                                     token="-"
                                     pass
                                 await self.Close()
-                                sys_notice(f"账号切换成功\n- 账号名称: {account_name} \n- 账号ID: {account_id} \n - Token: {token} \n- 过期时间: {exp_time}", str(cfg.get("server.code_title","WeRss账号切换成功")))
+                                sys_notice(f"账号切换成功\n- 账号名称: {account_name} \n- 账号ID: {account_id} \n- 过期时间: {exp_time}", str(cfg.get("server.code_title","WeRss账号切换成功")))
                                 return True
                             else:
                                 print_warning("没有找到可切换的账号")
@@ -233,7 +233,7 @@ class Wx:
     async def Token(self, callback=None,isClose=True) -> dict | None:
         try:
             self.CallBack = callback
-            if not getStatus():
+            if not await getStatus():
                 print_warning("登录状态检查失败")
                 return None
 
@@ -344,14 +344,14 @@ class Wx:
             # 定位二维码区域
             qr_tag=".login__type__container__scan__qrcode"
             # 获取二维码图片URL
-            qrcode = page.query_selector(qr_tag)
-            code_src=qrcode.get_attribute("src")
+            qrcode = await page.query_selector(qr_tag)
+            code_src=await qrcode.get_attribute("src")
             print("正在生成二维码图片...")
             print(f"code_src:{code_src}")
             # qrcode = page.query_selector(qr_tag)
-           
+
             # 使用Playwright截图功能（添加异常处理）
-            qrcode.screenshot(path=self.wx_login_url)
+            await qrcode.screenshot(path=self.wx_login_url)
 
             print("二维码已保存为 wx_qrcode.png，请扫码登录...")
             self.HasCode=True
@@ -373,7 +373,7 @@ class Wx:
             from .success import setStatus
             async with self._login_lock:
                 self._haslogin=True
-            setStatus(True)
+            await setStatus(True)
             self.CallBack=CallBack
             await self.Call_Success()
         except Exception as e:
@@ -439,7 +439,7 @@ class Wx:
 
         return self.SESSION 
 
-    def _extract_wechat_data(self):
+    async def _extract_wechat_data(self):
         """提取微信公众号数据，使用更健壮的选择器"""
         # 优先使用临时控制器，其次使用默认控制器
         controller = getattr(self, '_temp_controller', None) or self.controller
@@ -470,12 +470,12 @@ class Wx:
                 try:
                     element = page.locator(selector)
                     # 先检查元素是否存在，再等待可见
-                    if element.count() > 0:
-                        element.wait_for(state="visible", timeout=2000)
+                    if await element.count() > 0:
+                        await element.wait_for(state="visible", timeout=2000)
                         if key == "wx_logo":
-                            data[key] = element.get_attribute("src")
+                            data[key] = await element.get_attribute("src")
                         else:
-                            data[key] = element.text_content()
+                            data[key] = await element.text_content()
                         selector_found = True
                         # print_info(f"成功获取{key}，使用选择器: {selector}")
                         break
@@ -489,13 +489,13 @@ class Wx:
                     try:
                         # 尝试获取所有.data-item .number元素
                         all_numbers = page.locator(".data-item .number")
-                        count = all_numbers.count()
+                        count = await all_numbers.count()
                         if count >= 3:
-                            data[key] = all_numbers.nth(2).text_content()
+                            data[key] = await all_numbers.nth(2).text_content()
                             print_info(f"使用通用方法获取{key}成功")
                         elif count > 0:
                             # 如果只有1-2个，取最后一个
-                            data[key] = all_numbers.nth(count-1).text_content()
+                            data[key] = await all_numbers.nth(count-1).text_content()
                             print_info(f"使用备用方法获取{key}成功")
                     except Exception as fallback_e:
                         print_error(f"备用方法也失败: {str(fallback_e)}")
