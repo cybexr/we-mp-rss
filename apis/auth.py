@@ -24,6 +24,15 @@ def ApiSuccess(data):
             print("\n登录失败，请检查上述错误信息")
 @router.get("/qr/code", summary="获取登录二维码")
 async def get_qrcode(current_user=Depends(get_current_user)):
+    # 验证用户权限 - 只有管理员可以访问敏感的登录二维码功能
+    if current_user.get('role') != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_response(
+                code=40301,
+                message="权限不足，仅管理员可访问此功能"
+            )
+        )
 
     code_url=WX_API.GetCode(Success)
     return success_response(code_url)
