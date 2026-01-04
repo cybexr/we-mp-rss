@@ -534,8 +534,13 @@ class Wx:
     def Clean(self):
         try:
             os.remove(self.wx_login_url)
-        except:
+        except FileNotFoundError:
+            # File doesn't exist, no need to clean
             pass
+        except Exception as e:
+            # Log unexpected errors but don't fail
+            import logging
+            logging.debug(f"Clean method encountered error: {str(e)}")
         finally:
            pass
            
