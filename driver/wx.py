@@ -141,6 +141,27 @@ class Wx:
                                 nick_name=accounts.nth(random_index).locator(".section-item__nickname")
                                 account_id=await p.text_content()
                                 account_name=await nick_name.text_content()
+
+                                # 验证输入数据
+                                if not account_id or not account_name:
+                                    print_error("账号数据获取失败: ID或名称为空")
+                                    continue
+
+                                # 清理和验证字符串
+                                account_id = str(account_id).strip()
+                                account_name = str(account_name).strip()
+
+                                # 长度验证
+                                if len(account_id) > 100 or len(account_name) > 200:
+                                    print_error(f"账号数据长度异常: ID长度={len(account_id)}, 名称长度={len(account_name)}")
+                                    continue
+
+                                # 字符验证 (仅允许中文、字母、数字、常见符号)
+                                import re
+                                if not re.match(r'^[\w\u4e00-\u9fff\s\-_.]+$', account_name):
+                                    print_error(f"账号名称包含非法字符: {account_name}")
+                                    continue
+
                                 print(f"账号: {account_name} ID:{account_id}")
                                 p.click()
                                 # 等待页面加载并验证切换成功
@@ -203,10 +224,10 @@ class Wx:
             "code":f"/{self.wx_login_url}?t={(time.time())}",
             "is_exists":self.GetHasCode(),
         }
-    def refresh_task(self):
+    async def refresh_task(self):
         try:
             self.controller.driver.refresh()
-            self.Call_Success()
+            await self.Call_Success()
             # 检查登录状态
             if "home" not in self.controller.driver.current_url:
                 print("检测到登录已过期，请重新登录")
