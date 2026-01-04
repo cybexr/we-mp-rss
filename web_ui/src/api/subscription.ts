@@ -43,11 +43,12 @@ export interface MpSearchResult {
   data: MpItem[]
 }
 
-export const getSubscriptions = (params?: { page?: number; pageSize?: number }) => {
+export const getSubscriptions = (params?: { page?: number; pageSize?: number; kw?: string; category?: string }) => {
   const apiParams = {
     offset: (params?.page || 0) * (params?.pageSize || 10),
     limit: params?.pageSize || 10,
-    kw: params?.kw || ""
+    kw: params?.kw || "",
+    category: params?.category !== undefined ? params.category : undefined
   }
   return http.get<SubscriptionListResult>('/wx/mps', { params: apiParams })
 }

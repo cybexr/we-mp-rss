@@ -24,6 +24,7 @@
             style="width: 200px;"
           >
             <a-option value="">全部分类</a-option>
+            <a-option value="__BLANK__">(空白尚未维护)</a-option>
             <a-option v-for="category in categories" :key="category" :value="category">
               {{ category }}
             </a-option>
@@ -326,9 +327,14 @@ const loadData = async (kw = '', category = '', isLoadMore = false) => {
     if (kw) {
       params.kw = kw
     }
-    if (category) {
+    if (category === '__BLANK__') {
+      // Filter for blank/uncategorized categories
+      params.category = ''
+    } else if (category) {
+      // Filter for specific category (but not empty string "All Categories")
       params.category = category
     }
+    // If category is empty string ('All'), don't send category parameter
     const res = await getSubscriptions(params)
 
     if (isLoadMore) {

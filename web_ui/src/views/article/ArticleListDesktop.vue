@@ -41,6 +41,7 @@
                 @change="handleMpCategoryChange"
               >
                 <a-option value="">全部分类</a-option>
+                <a-option value="__BLANK__">(空白尚未维护)</a-option>
                 <a-option v-for="category in categories" :key="category" :value="category">
                   {{ category }}
                 </a-option>
@@ -721,9 +722,14 @@ const fetchMpList = async () => {
     if (mpSearchText.value) {
       params.kw = mpSearchText.value
     }
-    if (selectedMpCategory.value) {
+    if (selectedMpCategory.value === '__BLANK__') {
+      // Filter for blank/uncategorized categories
+      params.category = ''
+    } else if (selectedMpCategory.value) {
+      // Filter for specific category (but not empty string "All Categories")
       params.category = selectedMpCategory.value
     }
+    // If category is empty string ('All'), don't send category parameter
     const res = await getSubscriptions(params)
 
     mpList.value = res.list.map(item => ({
