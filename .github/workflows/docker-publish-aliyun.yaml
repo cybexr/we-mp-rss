@@ -5,6 +5,9 @@ permissions:
 
 on:
   workflow_dispatch:  # 手动触发
+  push:               # 自动触发：当版本文件变化时
+    paths:
+      - 'core/ver.py'
 
 env:
   # 阿里云ACR相关配置(从GitHub Secrets获取)
@@ -16,6 +19,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Extract version from core/ver.py
+        id: version
+        run: |
+          VERSION=$(python3 -c "import sys; sys.path.insert(0, '.'); from core.ver import VERSION; print(VERSION)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -34,11 +44,12 @@ jobs:
           images: ${{ secrets.ALIYUN_ACR_URL }}/yggacr/ygg-we-mp-rss
           tags: |
             type=raw,value=latest
-            type=sha,prefix={{branch}}-
+            type=raw,value=${{ steps.version.outputs.version }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{github.repository}}
             org.opencontainers.image.description=WeChat Mini Program RSS Reader
             org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Build and push Docker image (amd64 only)
         uses: docker/build-push-action@v5
