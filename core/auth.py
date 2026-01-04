@@ -12,9 +12,16 @@ from core.models import User
 import core.db  as db
 from passlib.context import CryptContext
 import json
+import os
 
 DB=db.Db(tag="用户连接")
-SECRET_KEY = cfg.get("secret","csol2025")  # 生产环境应使用更安全的密钥
+# 读取JWT密钥从环境变量，必须设置
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or cfg.get("jwt_secret_key", "")
+if not SECRET_KEY:
+    raise ValueError(
+        "JWT_SECRET_KEY environment variable or jwt_secret_key config must be set. "
+        "Please set a secure JWT secret key in your environment or configuration file."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(cfg.get("token_expire_minutes",30))
 
