@@ -1,15 +1,10 @@
-from asyncio import wait_for
-from socket import timeout
-import sys
-
-from sqlalchemy import False_
-
 import driver
 from .playwright_driver import PlaywrightController,ControlDriver
 from PIL import Image
 from .success import Success
 import time
 import os
+import random
 from driver.success import getStatus
 from driver.store import Store
 import re
@@ -231,7 +226,6 @@ class Wx:
                                             )
                             account_count = accounts.count()
                             print(f"当前一共有{account_count}个可切换账号")
-                            import random
                             if account_count > 0:
                                 # 点击第一个可切换的账号
                                 random_index = random.randint(0, account_count - 1)
@@ -295,10 +289,9 @@ class Wx:
             return {
                 "code":f"{self.wx_login_url}?t={(time.time())}",
                 "msg":"微信公众平台登录脚本正在运行，请勿重复运行！"}
-       
+
         self.Clean()
         print("异步任务执行中")
-        import asyncio
         # 创建后台异步任务执行登录
         asyncio.create_task(self.wxLogin(CallBack, True))
         from core.ver import VERSION
@@ -434,12 +427,6 @@ class Wx:
             await driver.open_url(self.WX_LOGIN)
             page=driver.page
 
-            # from playwright.sync_api import sync_playwright
-            # playwright=sync_playwright().start()
-            # browser = playwright.chromium.launch()
-            # context = browser.new_context()
-            # page = context.new_page()
-            # page.goto(self.WX_LOGIN)
             # 等待页面完全加载
             print_info("正在加载登录页面...")
             page.wait_for_load_state("networkidle")
@@ -466,11 +453,14 @@ class Wx:
 
             self.CallBack=CallBack
             await self.Call_Success()
+
+            # 启动定时刷新任务
+            if self._haslogin:
+                asyncio.create_task(self.schedule_refresh())
+        except asyncio.TimeoutError as e:
+            print_warning("\n扫码登录超时，请重新运行程序进行扫码登录")
         except Exception as e:
-            if "Timeout" in str(e):
-                print_warning("\n扫码登录超时，请重新运行程序进行扫码登录")
-            else:
-                print_error(f"\n错误发生: {str(e)}")
+            print_error(f"\n错误发生: {str(e)}")
             self.SESSION=None
             return self.SESSION
         finally:
@@ -593,6 +583,17 @@ class Wx:
             return True
         except Exception as e:
             return False
+
+    async def __aenter__(self):
+        """异步上下文管理器入口"""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """异步上下文管理器出口，确保资源清理"""
+        await self.cleanup_resources()
+        if hasattr(self, 'controller') and self.controller is not None:
+            await self.controller.cleanup()
+        return False
             
     async def Close(self) -> bool:
         rel=False
