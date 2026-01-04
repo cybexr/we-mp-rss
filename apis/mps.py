@@ -1,5 +1,6 @@
 from logging import info
 from typing import Optional, List
+from core.log import logger
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, UploadFile, File, Request
 from fastapi.responses import FileResponse
@@ -549,75 +550,25 @@ async def batch_update_category(
         try:
             from core.models.feed import Feed
 
-            # 添加调试日志
-            print(f"[DEBUG] 批量更新分类 - 接收到的 mp_ids: {mp_ids}")
-            print(f"[DEBUG] 批量更新分类 - category: {category}")
+            logger.info(f"批量更新分类 - mp_ids: {mp_ids}, category: {category}")
 
-            # 先尝试用 id 查询
+            # 直接通过 id 查询
             result = await session.execute(
                 select(Feed).where(Feed.id.in_(mp_ids))
             )
             mps = result.scalars().all()
-            print(f"[DEBUG] 通过 id 查询到 {len(mps)} 条记录")
-
-            # 如果没找到，尝试用 faker_id 查询
-            if not mps or len(mps) < len(mp_ids):
-                result_by_faker = await session.execute(
-                    select(Feed).where(Feed.faker_id.in_(mp_ids))
-                )
-                mps_by_faker = result_by_faker.scalars().all()
-                print(f"[DEBUG] 通过 faker_id 查询到 {len(mps_by_faker)} 条记录")
-
-                # 合并结果，去重
-                all_mps = list(mps) + list(mps_by_faker)
-                seen_ids = set()
-                mps = []
-                for mp in all_mps:
-                    if mp.id not in seen_ids:
-                        seen_ids.add(mp.id)
-                        mps.append(mp)
-
-                print(f"[DEBUG] 合并后共 {len(mps)} 条唯一记录")
-
-            if mps:
-                print(f"[DEBUG] 最终查询到的记录IDs: {[mp.id for mp in mps]}")
-                print(f"[DEBUG] 最终查询到的记录faker_ids: {[mp.faker_id for mp in mps]}")
 
             if not mps:
-                # 列出数据库中所有 feeds 的 id 和 faker_id 供调试
-                result_debug = await session.execute(
-                    select(Feed.id, Feed.faker_id, Feed.mp_name).limit(10)
-                )
-                all_feeds = result_debug.all()
-                print(f"[DEBUG] 数据库中前10条记录:")
-                for feed in all_feeds:
-                    print(f"  id={feed[0]}, faker_id={feed[1]}, mp_name={feed[2]}")
-
-                # Count total feeds
-                count_result = await session.execute(select(func.count(Feed.id)))
-                total_count = count_result.scalar()
-                print(f"[DEBUG] 数据库中Feed总数: {total_count}")
-
-                # Construct helpful error message
-                not_found_ids = mp_ids
-                error_msg = f"公众号不存在 (数据库中共有 {total_count} 个公众号)"
-
-                if total_count == 0:
-                    error_msg += ". 数据库为空！请检查数据库连接配置或初始化数据"
-                elif total_count < 10:
-                    # Show all existing IDs if database has few records
-                    existing_ids = [f[0] for f in all_feeds]
-                    error_msg += f". 现有ID: {existing_ids[:5]}"
-
-                error_msg += f". 未找到以下ID: {not_found_ids[:3]}{'...' if len(not_found_ids) > 3 else ''}"
-
+                logger.warning(f"公众号不存在，未找到以下ID: {mp_ids[:3]}")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=error_response(
                         code=40401,
-                        message=error_msg
+                        message=f"公众号不存在，未找到以下ID: {mp_ids[:3]}{'...' if len(mp_ids) > 3 else ''}"
                     )
                 )
+
+            logger.info(f"查询到 {len(mps)} 条记录，IDs: {[mp.id for mp in mps]}")
 
             updated_count = 0
             for mp in mps:
@@ -627,6 +578,8 @@ async def batch_update_category(
 
             await session.commit()
 
+            logger.info(f"成功更新 {updated_count} 个公众号的分类为: {category}")
+
             return success_response({
                 "updated_count": updated_count
             })
@@ -634,7 +587,7 @@ async def batch_update_category(
             raise
         except Exception as e:
             await session.rollback()
-            print(f"批量更新分类错误: {str(e)}")
+            logger.error(f"批量更新分类错误: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=error_response(
