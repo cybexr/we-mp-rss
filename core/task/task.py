@@ -239,9 +239,11 @@ class TaskScheduler:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
                         try:
-                            # Start scheduler (it will attach to this loop)
-                            self._scheduler.start()
-                            logger.info("Scheduler started in background thread")
+                            # Start the event loop FIRST, then attach scheduler
+                            # This avoids "no running event loop" error from scheduler.start()
+                            logger.info("Starting event loop in background thread...")
+                            loop.call_soon(self._scheduler.start)
+                            logger.info("Scheduler start scheduled in event loop")
                             # Run the event loop forever (blocking call, but we're in a thread)
                             loop.run_forever()
                         except Exception as e:
