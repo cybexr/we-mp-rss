@@ -135,12 +135,14 @@ class Db:
             art = Article(**article_data)
             if art.id:
                art.id=f"{str(art.mp_id)}-{art.id}".replace("MP_WXS_","")
-            
+
             if check_exist:
                 # 检查文章是否已存在
                 existing_article = session.query(Article).filter(Article.url == art.url or Article.id == art.id).first()
                 if existing_article is not None:
-                    print_warning(f"Duplicate article skipped: {art.get('url', art.get('id', 'unknown'))}")
+                    # Use article_data dict instead of art object for .get() calls
+                    url_info = article_data.get('url', article_data.get('id', 'unknown'))
+                    print_warning(f"Duplicate article skipped: {url_info}")
                     return False
                 
             if art.created_at is None:

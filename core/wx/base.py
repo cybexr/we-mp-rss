@@ -136,10 +136,13 @@ class WxGather:
                 }
                 if 'digest' in data:
                     art['description']=data['digest']
-                if CallBack(art):
+                # Explicitly separate callback execution from result judgment
+                # to ensure only the original art dict is added to articles list
+                is_success = CallBack(art)
+                if is_success:
                     art["ext"]=Ext_Data
                     # art.pop("content")
-                    self.articles.append(art)
+                    self.articles.append(art)  # Always append the original art dict
 
     #通过公众号码平台接口查询公众号
     def search_Biz(self,kw:str="",limit=10,offset=0):
@@ -200,7 +203,34 @@ class WxGather:
 
     def Item_Over(self,item=None,CallBack=None):
         print(f"item end")
-        _cookies=[{'name': c.name, 'value': c.value, 'domain': c.domain,'expiry':c.expires,'expires':c.expires} for c in self._cookies]
+        # Fix: self._cookies is a dict-like object (httpx/aiohttp Cookies), need to iterate over values or items
+        _cookies=[]
+        for name, cookie in self._cookies.items():
+            # Handle different cookie types: httpx.Cookie, aiohttp.Cookie, or dict
+            if hasattr(cookie, 'value'):
+                # httpx.Cookie or similar object with attributes
+                _cookies.append({
+                    'name': name,
+                    'value': cookie.value,
+                    'domain': getattr(cookie, 'domain', ''),
+                    'expires': getattr(cookie, 'expires', None)
+                })
+            elif isinstance(cookie, dict):
+                # Dict-like cookie
+                _cookies.append({
+                    'name': name,
+                    'value': cookie.get('value', ''),
+                    'domain': cookie.get('domain', ''),
+                    'expires': cookie.get('expires', None)
+                })
+            else:
+                # String value (fallback)
+                _cookies.append({
+                    'name': name,
+                    'value': str(cookie) if cookie else '',
+                    'domain': '',
+                    'expires': None
+                })
         _cookies.append({'name':'token','value':self.token})
         if CallBack is not None:
             CallBack(item)

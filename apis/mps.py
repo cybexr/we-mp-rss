@@ -238,7 +238,7 @@ async def update_mps(
                 # Explicit cleanup to prevent resource leaks
                 await wx.cleanup()
         except Exception as e:
-            print(f"更新公众号文章: {str(e)}",e)
+            print_error(f"更新公众号文章: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=error_response(
