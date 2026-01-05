@@ -1,7 +1,6 @@
 from asyncio import futures
 import os
 import platform
-import subprocess
 import sys
 import json
 import random
@@ -136,13 +135,13 @@ class PlaywrightController:
                 # Async context error - using sync API in async loop
                 tips = "Async context error: You are using sync Playwright API inside an asyncio event loop. Solution: Convert all Playwright calls to async API (use playwright.async_api instead of playwright.sync_api, and add 'await' to all Playwright method calls)."
                 print(tips)
-                self.cleanup()
+                await self.cleanup()
                 raise Exception(tips)
             elif 'executable' in error_msg.lower() or 'browser' in error_msg.lower() or 'not found' in error_msg.lower():
                 # Browser not installed
                 tips = "Docker环境;您可以设置环境变量INSTALL=True并重启Docker自动安装浏览器环境;如需要切换浏览器可以设置环境变量BROWSER_TYPE=firefox 支持(firefox,webkit,chromium),开发环境请手工安装"
                 print(tips)
-                self.cleanup()
+                await self.cleanup()
                 raise Exception(tips)
             else:
                 # Generic error with full traceback
@@ -150,7 +149,7 @@ class PlaywrightController:
                 traceback.print_exc()
                 tips = f"Browser launch failed: {error_msg}. Check logs above for full error details."
                 print(tips)
-                self.cleanup()
+                await self.cleanup()
                 raise Exception(tips)
         
     def string_to_json(self, json_string):
@@ -190,13 +189,22 @@ class PlaywrightController:
         try:
             from playwright_stealth.stealth import Stealth
             stealth = Stealth()
-            await stealth.async_apply_stealth(self.page)
+            await stealth.apply_stealth_async(self.page)
         except ImportError:
             print("检测到playwright_stealth未安装，正在自动安装...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright_stealth"])
+            # Use async subprocess to avoid blocking the event loop
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, "-m", "pip", "install", "playwright_stealth",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode != 0:
+                print(f"安装playwright_stealth失败: {stderr.decode()}")
+                raise
             from playwright_stealth.stealth import Stealth
             stealth = Stealth()
-            await stealth.async_apply_stealth(self.page)
+            await stealth.apply_stealth_async(self.page)
         # 隐藏自动化特征
         await self.page.add_init_script("""
         // 隐藏webdriver属性
@@ -306,10 +314,14 @@ class PlaywrightController:
 ControlDriver=PlaywrightController()
 # 示例用法
 if __name__ == "__main__":
-    controller = PlaywrightController()
-    try:
-        controller.start_browser()
-        controller.open_url("https://mp.weixin.qq.com/")
-    finally:
-        # controller.Close()
-        pass
+    async def main():
+        controller = PlaywrightController()
+        try:
+            await controller.start_browser(headless=False)
+            await controller.open_url("https://mp.weixin.qq.com/")
+            # Keep browser open for a few seconds to observe
+            await asyncio.sleep(10)
+        finally:
+            await controller.cleanup()
+
+    asyncio.run(main())
