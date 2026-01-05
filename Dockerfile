@@ -57,6 +57,11 @@ COPY . .
 # 构建前端
 WORKDIR /app/web_ui
 RUN npm install && npm run build
+
+# 复制前端构建产物到 static 目录
+RUN mkdir -p /app/static && \
+    cp -r /app/web_ui/dist/* /app/static/
+
 WORKDIR /app
 
 # 设置配置文件(如果不存在)
