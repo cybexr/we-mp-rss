@@ -2,6 +2,8 @@ import queue
 import threading
 import time
 import gc
+import asyncio
+import inspect
 from typing import Callable, Any, Optional
 from core.print import print_error, print_info, print_warning, print_success
 class TaskQueueManager:
@@ -49,7 +51,25 @@ class TaskQueueManager:
                     try:
                         # 记录任务开始时间
                         start_time = time.time()
-                        task(*args, **kwargs)
+
+                        # Check if the task is an async function
+                        if inspect.iscoroutinefunction(task):
+                            # Run async function in a new event loop
+                            try:
+                                loop = asyncio.get_event_loop()
+                                if loop.is_closed():
+                                    raise RuntimeError("Event loop is closed")
+                            except RuntimeError:
+                                # Create new event loop if none exists or it's closed
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+
+                            # Run the async function
+                            loop.run_until_complete(task(*args, **kwargs))
+                        else:
+                            # Run synchronous function normally
+                            task(*args, **kwargs)
+
                         # 记录任务执行时间
                         duration = time.time() - start_time
                         print_info(f"\n任务执行完成，耗时: {duration:.2f}秒")
