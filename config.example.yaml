@@ -104,10 +104,12 @@ gather:
   content_auto_interval: ${GATHER.CONTENT_AUTO_INTERVAL:-59}
   #内容修正模式，默认web 允许值 web、api
   content_mode: ${GATHER.CONTENT_MODE:-web}
-  #是否清理html标签 默认True 
+  #是否清理html标签 默认True
   clean_html: ${GATHER.CLEAN_HTML:-False}
   #浏览器类型 默认chromium 允许值 chromium/firefox/webkit
   browser_type: ${BROWSER_TYPE:-chromium}
+  #文章内容采集请求间隔 单位秒 默认2秒 允许值 1-10秒之间 (实际延迟为配置值的±30%随机浮动)
+  content_req_delay: ${GATHER.CONTENT_REQ_DELAY:-2}
 #安全配置
 safe:
     # 需要隐藏的配置信息，用逗号分隔 如：db,secret,token等 

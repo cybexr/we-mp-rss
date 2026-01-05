@@ -26,11 +26,16 @@ async def fetch_articles_without_content():
                 return
 
             # 使用async context manager初始化BrowserManager
+            # 使用新的 gather.content_req_delay 配置，并在其基础上±30%随机浮动
+            base_delay = float(cfg.get("gather.content_req_delay", 2))
+            min_delay = base_delay * 0.7  # -30%
+            max_delay = base_delay * 1.3  # +30%
+
             async with BrowserManager(
                 max_articles_per_browser=7,
                 max_retries=3,
-                min_delay=2.0,
-                max_delay=5.0
+                min_delay=min_delay,
+                max_delay=max_delay
             ) as browser_manager:
 
                 for article in articles:
@@ -58,11 +63,6 @@ async def fetch_articles_without_content():
                         print_success(f"成功更新文章 {article.title} 的内容")
                     else:
                         print_error(f"获取文章 {article.title} 内容失败")
-
-                    # 使用asyncio.sleep替代Wait
-                    delay = random.uniform(5, 10)
-                    print(f"Waiting {delay:.2f} seconds after processing {article.title}")
-                    await asyncio.sleep(delay)
     except Exception as e:
         print(f"处理过程中发生错误: {e}")
         await session.rollback()
