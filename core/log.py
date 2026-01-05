@@ -5,60 +5,69 @@ try:
 except ImportError:
     colorlog = None
 from core.config import cfg
-global logger
-# 创建logger对象
-logger = logging.getLogger(__name__)
-level=cfg.get("log.level", "INFO").upper()
-log_filer=cfg.get("log.file", "")
 
-if level=="DEBUG":
-    logger.setLevel(logging.DEBUG)  # 设置最低日志级别
-if level=="INFO":
-    logger.setLevel(logging.INFO)  # 设置最低日志级别
-if level=="ERROR":
-    logger.setLevel(logging.ERROR)  # 设置最低日志级别
-if level=="WARNING":
-    logger.setLevel(logging.WARNING)  # 设置最低日志级别
-if level=="CRITICAL":
-    logger.setLevel(logging.CRITICAL)  # 设置最低日志级别
+# Get log configuration
+level = cfg.get("log.level", "INFO").upper()
+log_file = cfg.get("log.file", "")
 
+# Configure ROOT logger to capture ALL application logs
+# This ensures logs from FastAPI, Uvicorn, SQLAlchemy, and all modules go to the file
+root_logger = logging.getLogger()
 
-
-# 创建文件处理器，每天一个文件，保留7天备份
-if len(log_filer)<=0:
-    handler = logging.NullHandler()
+# Set root logger level
+if level == "DEBUG":
+    root_logger.setLevel(logging.DEBUG)
+elif level == "INFO":
+    root_logger.setLevel(logging.INFO)
+elif level == "ERROR":
+    root_logger.setLevel(logging.ERROR)
+elif level == "WARNING":
+    root_logger.setLevel(logging.WARNING)
+elif level == "CRITICAL":
+    root_logger.setLevel(logging.CRITICAL)
 else:
-    handler = RotatingFileHandler(f'{log_filer}.log', maxBytes=1024*1024, backupCount=7)
-handler.setLevel(logging.DEBUG)
+    root_logger.setLevel(logging.INFO)
 
-# 创建控制台处理器
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
+# Remove any existing handlers to avoid duplicates
+root_logger.handlers.clear()
 
-# 创建格式器并添加到处理器
+# Create formatters
 file_formatter = logging.Formatter(
-    '%(asctime)s - %(levelname)s - %(message)s',
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-handler.setFormatter(file_formatter)
 
 if colorlog:
     console_formatter = colorlog.ColoredFormatter(
-        '%(log_color)s%(asctime)s  - %(levelname)s - %(message)s',
+        '%(log_color)s%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
         log_colors={
             'DEBUG': 'cyan',
             'INFO': 'green',
             'WARNING': 'yellow',
             'ERROR': 'red',
-            'CRITICAL': 'red,bg_white',
+            'CRITICAL': 'red,bg-white',
         }
     )
 else:
     console_formatter = file_formatter
 
-console_handler.setFormatter(console_formatter)
+# Create file handler if log file is specified
+if log_file:
+    file_handler = RotatingFileHandler(
+        f'{log_file}.log',
+        maxBytes=1024*1024,  # 1MB per file
+        backupCount=7
+    )
+    file_handler.setLevel(logging.DEBUG)  # File captures all levels
+    file_handler.setFormatter(file_formatter)
+    root_logger.addHandler(file_handler)
 
-# 将处理器添加到logger
-logger.addHandler(handler)
-logger.addHandler(console_handler)
+# Create console handler (stdout/stderr - captured by Docker)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)  # Console shows INFO and above
+console_handler.setFormatter(console_formatter)
+root_logger.addHandler(console_handler)
+
+# Create a module-level logger for backward compatibility
+logger = logging.getLogger(__name__)

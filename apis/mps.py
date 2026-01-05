@@ -83,7 +83,7 @@ async def get_mps(
             stmt = select(Feed)
             if kw:
                 stmt = stmt.where(Feed.mp_name.ilike(f"%{kw}%"))
-            if category:
+            if category is not None:
                 stmt = stmt.where(Feed.category == category)
 
             # Get total count
