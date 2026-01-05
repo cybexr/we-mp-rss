@@ -51,12 +51,30 @@ class PlaywrightController:
         return True
 
     def is_browser_started(self):
-        """检测浏览器是否已启动"""
-        return (not self.isClose and
-                self.driver is not None and
-                self.browser is not None and
-                self.context is not None and
-                self.page is not None)
+        """检测浏览器是否已启动，包含实际连接状态验证"""
+        # 首先检查基本对象引用是否存在
+        if (self.isClose or
+            self.driver is None or
+            self.browser is None or
+            self.context is None or
+            self.page is None):
+            return False
+
+        # 尝试验证浏览器实际连接状态
+        try:
+            # 检查浏览器是否连接（is_connected在Playwright中可用）
+            if hasattr(self.browser, 'is_connected'):
+                return self.browser.is_connected()
+            # 如果没有is_connected方法，检查page是否可访问
+            # 通过检查page的基本属性来验证状态
+            elif hasattr(self.page, 'url'):
+                # 如果能访问page.url，说明page对象仍然有效
+                return True
+            else:
+                return False
+        except Exception:
+            # 任何异常都说明浏览器状态异常
+            return False
 
     async def start_browser(self, headless=True, mobile_mode=False, dis_image=True, browser_name=browsers_name, language="zh-CN", anti_crawler=True):
         try:
@@ -289,20 +307,50 @@ class PlaywrightController:
         await self.cleanup()
 
     async def cleanup(self):
-        """清理所有资源"""
-        try:
-            # 使用线程锁确保线程安全
-            if hasattr(self, 'page') and self.page:
+        """清理所有资源，优雅处理已关闭的对象"""
+        # 分别处理每个资源，确保单个失败不影响其他资源清理
+        # 1. 关闭page
+        if hasattr(self, 'page') and self.page is not None:
+            try:
                 await self.page.close()
-            if hasattr(self, 'context') and self.context:
+                self.page = None
+            except Exception as e:
+                print(f"关闭page时出错（可能已关闭）: {str(e)}")
+                self.page = None
+
+        # 2. 关闭context
+        if hasattr(self, 'context') and self.context is not None:
+            try:
                 await self.context.close()
-            if hasattr(self, 'browser') and self.browser:
+                self.context = None
+            except Exception as e:
+                print(f"关闭context时出错（可能已关闭）: {str(e)}")
+                self.context = None
+
+        # 3. 关闭browser
+        if hasattr(self, 'browser') and self.browser is not None:
+            try:
                 await self.browser.close()
-            if hasattr(self, 'playwright') and self.playwright:
+                self.browser = None
+            except Exception as e:
+                print(f"关闭browser时出错（可能已关闭）: {str(e)}")
+                self.browser = None
+
+        # 4. 停止playwright
+        if hasattr(self, 'playwright') and self.playwright is not None:
+            try:
                 await self.playwright.stop()
-            self.isClose = True
-        except Exception as e:
-            print(f"资源清理失败: {str(e)}")
+                self.playwright = None
+            except Exception as e:
+                print(f"停止playwright时出错（可能已停止）: {str(e)}")
+                self.playwright = None
+
+        # 5. 清理driver引用
+        if hasattr(self, 'driver'):
+            self.driver = None
+
+        # 6. 设置关闭标志
+        self.isClose = True
 
     def dict_to_json(self, data_dict):
         try:

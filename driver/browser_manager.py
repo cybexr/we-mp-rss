@@ -150,12 +150,13 @@ class BrowserManager:
         # Start browser if needed
         await self._start_browser_if_needed(mobile_mode)
 
-        # Check if browser needs restart
+        # Check if browser needs restart BEFORE creating fetcher
         if self._should_restart_browser():
             await self._restart_browser(mobile_mode)
 
         try:
-            # Create fetcher with current page
+            # Create fetcher with current page AFTER any browser restart
+            # This ensures the fetcher always holds a valid page reference
             fetcher = WXArticleFetcher(page=self.controller.page)
 
             # Fetch with retry - call async method directly

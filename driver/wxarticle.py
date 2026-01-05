@@ -361,7 +361,7 @@ class WXArticleFetcher:
             if info["content"]!="DELETED":
                 # 等待关键元素加载
                 # 使用更精确的选择器避免匹配多个元素
-                ele_logo = await page.locator('#js_like_profile_bar .wx_follow_avatar img')
+                ele_logo = page.locator('#js_like_profile_bar .wx_follow_avatar img')
                 # 获取<img>标签的src属性
                 logo_src = await ele_logo.get_attribute('src')
 
