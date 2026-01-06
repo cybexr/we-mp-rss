@@ -31,8 +31,12 @@ async def fetch_articles_without_content():
             min_delay = base_delay * 0.7  # -30%
             max_delay = base_delay * 1.3  # +30%
 
+            # 使用 gather.content_browser_restart_req 配置，默认100，范围1-1000
+            browser_restart_req = cfg.get('gather.content_browser_restart_req', 100)
+            browser_restart_req = max(1, min(1000, int(browser_restart_req)))
+
             async with BrowserManager(
-                max_articles_per_browser=7,
+                max_articles_per_browser=browser_restart_req,
                 max_retries=3,
                 min_delay=min_delay,
                 max_delay=max_delay

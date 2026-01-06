@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from core.wx.base import WxGather
 from core.print import print_error, print_info, print_warning
 from core.log import logger
+from core.config import cfg
 
 # 继承 BaseGather 类
 class MpsAppMsg(WxGather):
@@ -23,9 +24,11 @@ class MpsAppMsg(WxGather):
         """获取或创建BrowserManager实例"""
         if self.browser_manager is None:
             from driver.browser_manager import BrowserManager
-            # 配置：每7个文章重启一次浏览器，最多重试3次，延迟2-5秒
+            # 配置：使用 gather.content_browser_restart_req 配置，每N个文章重启一次浏览器，最多重试3次，延迟2-5秒
+            browser_restart_req = cfg.get('gather.content_browser_restart_req', 100)
+            browser_restart_req = max(1, min(1000, int(browser_restart_req)))
             self.browser_manager = BrowserManager(
-                max_articles_per_browser=7,
+                max_articles_per_browser=browser_restart_req,
                 max_retries=3,
                 min_delay=2.0,
                 max_delay=5.0
