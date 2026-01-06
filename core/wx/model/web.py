@@ -97,6 +97,7 @@ class MpsWeb(WxGather):
         session=self.session
         # 起始页数
         i = start_page
+        consecutive_empty_page = 0
         while True:
             if i >= MaxPage:
                 break
@@ -132,7 +133,19 @@ class MpsWeb(WxGather):
                     break  
                 if "publish_page" in msg:
                     msg["publish_page"]=json.loads(msg['publish_page'])
-                    for item in msg["publish_page"]['publish_list']:
+                    publish_list = msg["publish_page"].get('publish_list', [])
+
+                    # Check if page is empty
+                    if len(publish_list) == 0:
+                        consecutive_empty_page += 1
+                        print(f"第{i+1}页无文章，连续空页计数: {consecutive_empty_page}/3")
+                        if consecutive_empty_page >= 3:
+                            print("连续3页无文章，提前停止翻页")
+                            break
+                    else:
+                        consecutive_empty_page = 0
+
+                    for item in publish_list:
                         if "publish_info" in item:
                             publish_info= json.loads(item['publish_info'])
                        
