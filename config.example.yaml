@@ -12,8 +12,8 @@ server:
    enable_job: ${ENABLE_JOB:-True}
    #代码修改自动重启服务，默认为False
    auto_reload: ${AUTO_RELOAD:-True}
-   #最大线程数 默认2个线程，不建议超过4个线程
-   threads: ${THREADS:-2}
+   #最大线程数 默认4个线程，不建议超过4个线程
+   threads: ${THREADS:-4}
    #通过web方式授权二维码 默认False 
    auth_web: ${WERSS_AUTH_WEB:-False}
 
@@ -138,3 +138,5 @@ site:
   name: ${SITE_NAME:-WeRss}
   description: ${SITE_DESCRIPTION:-A WeChat Official Account RSS Reader}
   keywords: ${SITE_KEYWORDS:-}
+
+jwt_secret_key: demo_jwt_secret_key

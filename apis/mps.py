@@ -164,7 +164,7 @@ async def update_mps(
     """
     更新指定公众号的文章列表。
 
-    此接口会直接同步等待文章更新完成，并返回实际获取到的文章列表。
+    此接口将文章更新任务提交到后台队列，立即返回任务ID用于状态查询。
     更新操作受频率限制保护，默认间隔30秒。
 
     Args:
@@ -174,10 +174,10 @@ async def update_mps(
 
     Returns:
         包含以下字段的响应:
-        - time_span: 距离上次更新的时间间隔（秒）
-        - list: 本次更新获取到的文章列表
-        - total: 获取到的文章总数
+        - job_id: 后台任务ID，用于轮询任务状态
+        - status: 任务状态 (queued/running/completed/failed)
         - mp_id: 公众号ID
+        - message: 提示信息
 
     Raises:
         404: 公众号不存在
@@ -188,6 +188,7 @@ async def update_mps(
         try:
             from core.models.feed import Feed
             from core.wx import WxGather
+            from core.queue import TaskQueue
 
             result = await session.execute(
                 select(Feed).where(Feed.id == mp_id)
@@ -213,32 +214,32 @@ async def update_mps(
                         data={"time_span":time_span}
                     )
 
-            # 直接执行文章更新任务（同步等待完成）
-            wx=WxGather().Model()
-            try:
-                await wx.get_Articles(
-                    mp.faker_id,
-                    Mps_id=mp.id,
-                    Mps_title=mp.mp_name,
-                    CallBack=UpdateArticle,
-                    start_page=start_page,
-                    MaxPage=end_page
-                )
+            # 更新公众号的最后更新时间（提交任务前更新，避免重复提交）
+            mp.update_time = int(time.time())
+            await session.commit()
 
-                # 更新公众号的最后更新时间
-                mp.update_time = int(time.time())
-                await session.commit()
+            # Generate unique job_id for this refresh task
+            job_id = f'refresh_{mp_id}_{int(time.time())}'
 
-                # 返回实际获取到的文章列表
-                return success_response({
-                    "time_span": time_span,
-                    "list": wx.articles,
-                    "total": len(wx.articles),
-                    "mp_id": mp.id
-                })
-            finally:
-                # Explicit cleanup to prevent resource leaks
-                await wx.cleanup()
+            # 提交文章更新任务到后台队列（非阻塞）
+            TaskQueue.add_task(
+                WxGather().Model().get_Articles,
+                faker_id=mp.faker_id,
+                Mps_id=mp.id,
+                Mps_title=mp.mp_name,
+                CallBack=UpdateArticle,
+                start_page=start_page,
+                MaxPage=end_page,
+                job_id=job_id
+            )
+
+            # 立即返回任务ID，不等待任务完成
+            return success_response({
+                "job_id": job_id,
+                "status": "queued",
+                "mp_id": mp.id,
+                "message": "文章更新任务已提交到后台队列，请使用job_id查询进度"
+            })
         except Exception as e:
             print_error(f"更新公众号文章: {str(e)}")
             raise HTTPException(
@@ -248,6 +249,68 @@ async def update_mps(
                     message=f"更新公众号文章{str(e)}"
                 )
             )
+
+@router.get("/jobs/{job_id}", summary="查询公众号文章更新任务状态")
+async def get_job_status(
+    job_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    查询指定公众号文章更新任务的状态和进度。
+
+    Args:
+        job_id: 任务ID，由 update_mps 接口返回
+
+    Returns:
+        包含以下字段的响应:
+        - job_id: 任务ID
+        - status: 任务状态 (queued/running/completed/failed)
+        - created_at: 任务创建时间
+        - updated_at: 任务更新时间
+        - task_name: 任务名称
+        - progress: 进度百分比 (0-100)
+        - error: 错误信息（仅失败时有值）
+
+    Raises:
+        404: 任务不存在
+        500: 服务器内部错误
+    """
+    try:
+        from core.queue import TaskQueue
+
+        # 查询任务状态
+        job_status = TaskQueue.get_status(job_id)
+
+        if not job_status:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_response(
+                    code=40401,
+                    message=f"任务不存在: {job_id}"
+                )
+            )
+
+        # 返回任务状态信息
+        return success_response({
+            "job_id": job_id,
+            "status": job_status['status'],
+            "created_at": job_status['created_at'],
+            "updated_at": job_status['updated_at'],
+            "task_name": job_status['task_name'],
+            "progress": job_status['progress'],
+            "error": job_status.get('error')
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        print_error(f"查询任务状态错误: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_response(
+                code=50001,
+                message=f"查询任务状态失败: {str(e)}"
+            )
+        )
 
 @router.get("/{mp_id}", summary="获取公众号详情")
 async def get_mp(
