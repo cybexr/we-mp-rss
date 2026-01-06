@@ -75,39 +75,71 @@ async def get_mps(
     category: Optional[str] = Query(None, description="Filter by category"),
     current_user: dict = Depends(get_current_user)
 ):
+    """
+    获取公众号列表，包含文章统计和最后发布时间。
+
+    Returns:
+        - last_publish_time: 最后一次文章发布时间 (ISO format 或 null)
+        - article_count: 该公众号的文章总数 (integer, 0 if no articles)
+    """
+    def format_timestamp(timestamp):
+        """格式化时间戳为ISO格式，处理0或None的情况"""
+        if timestamp and timestamp > 0:
+            return datetime.fromtimestamp(timestamp).isoformat()
+        return None
+
     try:
         from core.models.feed import Feed
+        from core.models.article import Article
+
         # Use async database session instead of sync session
         async with DB.async_session_factory() as session:
-            # Build query using SQLAlchemy 2.0 select() syntax
-            stmt = select(Feed)
+            # Build query with LEFT JOIN to Article table for counting and last publish time
+            stmt = select(
+                Feed,
+                func.count(Article.id).label('article_count'),
+                func.max(Article.publish_time).label('last_publish_time')
+            ).outerjoin(
+                Article, Article.mp_id == Feed.id
+            ).group_by(
+                Feed.id
+            )
+
             if kw:
                 stmt = stmt.where(Feed.mp_name.ilike(f"%{kw}%"))
             if category is not None:
                 stmt = stmt.where(Feed.category == category)
 
-            # Get total count
-            count_stmt = select(func.count()).select_from(stmt.subquery())
+            # Get total count (count distinct feeds, not article groups)
+            count_stmt = select(func.count()).select_from(Feed)
+            if kw:
+                count_stmt = count_stmt.where(Feed.mp_name.ilike(f"%{kw}%"))
+            if category is not None:
+                count_stmt = count_stmt.where(Feed.category == category)
+
             total_result = await session.execute(count_stmt)
             total = total_result.scalar()
 
             # Get paginated results
             stmt = stmt.order_by(Feed.created_at.desc()).limit(limit).offset(offset)
             result = await session.execute(stmt)
-            mps = result.scalars().all()
+            rows = result.all()
 
+            # Process results: each row is (Feed, article_count, last_publish_time)
             return success_response({
                 "list": [{
-                    "id": mp.id,
-                    "mp_name": mp.mp_name,
-                    "mp_cover": mp.mp_cover,
-                    "mp_intro": mp.mp_intro,
-                    "status": mp.status,
-                    "cache_images": mp.cache_images,
-                    "remarks": mp.remarks,
-                    "category": mp.category,
-                    "created_at": mp.created_at.isoformat()
-                } for mp in mps],
+                    "id": feed.id,
+                    "mp_name": feed.mp_name,
+                    "mp_cover": feed.mp_cover,
+                    "mp_intro": feed.mp_intro,
+                    "status": feed.status,
+                    "cache_images": feed.cache_images,
+                    "remarks": feed.remarks,
+                    "category": feed.category,
+                    "last_publish_time": format_timestamp(last_publish_time),
+                    "article_count": article_count or 0,
+                    "created_at": feed.created_at.isoformat()
+                } for feed, article_count, last_publish_time in rows],
                 "page": {
                     "limit": limit,
                     "offset": offset,
