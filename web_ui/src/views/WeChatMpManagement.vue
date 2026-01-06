@@ -263,13 +263,38 @@
         @page-change="handleArticlePageChange"
       >
         <template #publish_time="{ record }">
-          {{ record.publish_time ? new Date(record.publish_time * 1000).toLocaleString('zh-CN') : '-' }}
+          {{ formatTimestamp(record.publish_time) }}
         </template>
         <template #created_at="{ record }">
           {{ record.created_at ? new Date(record.created_at).toLocaleString('zh-CN') : '-' }}
         </template>
+        <template #actions="{ record }">
+          <a-button type="text" @click="viewArticle(record)" :title="record.id">
+            <template #icon><icon-eye /></template>
+          </a-button>
+        </template>
       </a-table>
     </a-modal>
+
+    <a-drawer
+      v-model:visible="articleDetailDrawerVisible"
+      title="文章详情"
+      width="800"
+      :footer="false"
+    >
+      <div v-if="currentArticle" class="article-detail">
+        <h2>{{ currentArticle.title }}</h2>
+        <a-descriptions :column="1" bordered size="small">
+          <a-descriptions-item label="公众号">{{ currentArticle.mp_name }}</a-descriptions-item>
+          <a-descriptions-item label="发布时间">{{ formatTimestamp(currentArticle.publish_time) }}</a-descriptions-item>
+          <a-descriptions-item label="链接">
+            <a :href="currentArticle.link" target="_blank" rel="noopener">{{ currentArticle.link }}</a>
+          </a-descriptions-item>
+        </a-descriptions>
+        <a-divider />
+        <div class="article-content" v-html="currentArticle.content"></div>
+      </div>
+    </a-drawer>
   </div>
 </template>
 
@@ -280,6 +305,8 @@ import { getArticles } from '@/api/article'
 import { getToken } from '@/utils/auth'
 import { Avatar } from '@/utils/constants'
 import { Message, Modal } from '@arco-design/web-vue'
+import { IconEye } from '@arco-design/web-vue/es/icon'
+import { formatTimestamp } from '@/utils/date'
 
 const headers = { Authorization: `Bearer ${getToken()}` }
 
@@ -329,6 +356,10 @@ const articlePagination = reactive({
   pageSize: 10,
   total: 0
 })
+
+// 文章详情抽屉相关状态
+const articleDetailDrawerVisible = ref(false)
+const currentArticle = ref<any>(null)
 
 const form = reactive({
   mp_id: '',
@@ -531,12 +562,20 @@ const articleColumns = [
   {
     title: '发布时间',
     dataIndex: 'publish_time',
-    width: 160
+    width: 160,
+    slotName: 'publish_time'
   },
   {
     title: '更新时间',
     dataIndex: 'created_at',
-    width: 160
+    width: 160,
+    slotName: 'created_at'
+  },
+  {
+    title: '操作',
+    slotName: 'actions',
+    width: 80,
+    align: 'center'
   }
 ]
 
@@ -573,6 +612,12 @@ const showArticles = (record) => {
 const handleArticlePageChange = (page) => {
   articlePagination.current = page
   fetchArticles()
+}
+
+// 查看文章详情
+const viewArticle = (record) => {
+  currentArticle.value = record
+  articleDetailDrawerVisible.value = true
 }
 
 const showBatchCategoryModal = () => {
@@ -647,5 +692,21 @@ onBeforeUnmount(() => {
   margin-top: 8px;
   font-size: 12px;
   color: var(--color-text-3);
+}
+
+.article-detail h2 {
+  margin-bottom: 16px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.article-content {
+  line-height: 1.8;
+  font-size: 14px;
+}
+
+.article-content :deep(img) {
+  max-width: 100%;
+  height: auto;
 }
 </style>

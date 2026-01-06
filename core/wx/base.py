@@ -122,7 +122,6 @@ class WxGather:
     def FillBack(self,CallBack=None,data=None,Ext_Data=None):
         if CallBack is not None:
             if data is not  None:
-                setStatus(True)
                 from core.models import Article
                 from datetime import datetime
                 art={

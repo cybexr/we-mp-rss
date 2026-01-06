@@ -98,6 +98,7 @@ class MpsWeb(WxGather):
         # 起始页数
         i = start_page
         consecutive_empty_page = 0
+        should_stop = False  # Flag to stop pagination
         while True:
             if i >= MaxPage:
                 break
@@ -141,7 +142,8 @@ class MpsWeb(WxGather):
                         print(f"第{i+1}页无文章，连续空页计数: {consecutive_empty_page}/3")
                         if consecutive_empty_page >= 3:
                             print("连续3页无文章，提前停止翻页")
-                            break
+                            should_stop = True
+                            break  # Break the for loop (empty pages, so nothing to iterate anyway)
                     else:
                         consecutive_empty_page = 0
 
@@ -163,6 +165,11 @@ class MpsWeb(WxGather):
                                     if CallBack is not None:
                                         super().FillBack(CallBack=CallBack,data=item,Ext_Data={"mp_title":Mps_title,"mp_id":Mps_id})
                     print(f"第{i+1}页爬取成功\n")
+
+                    # Check if we should stop pagination after processing this page
+                    if should_stop:
+                        break
+
                 # 翻页
                 i += 1
             except (aiohttp.ClientTimeout, asyncio.TimeoutError):
