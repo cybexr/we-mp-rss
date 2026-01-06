@@ -10,8 +10,12 @@ export interface Subscription {
   remarks: string
   category: string
   created_at: string
+  // New fields from API enhancement
+  last_publish_time?: string | null
+  article_count?: number
   // Optional fields that may be added by the frontend
   sync_time?: string
+  updated_at?: string
 }
 
 export interface SubscriptionListResult {

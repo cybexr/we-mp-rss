@@ -77,6 +77,19 @@
             <span v-else style="color: #c9cdd4;">-</span>
           </template>
 
+          <template #last_publish_time="{ record }">
+            <span v-if="record.last_publish_time" style="font-size: 12px;">
+              {{ formatPublishTime(record.last_publish_time) }}
+            </span>
+            <span v-else style="color: #c9cdd4;">-</span>
+          </template>
+
+          <template #article_count="{ record }">
+            <a-tag color="arcoblue" size="small">
+              {{ record.article_count || 0 }} 篇
+            </a-tag>
+          </template>
+
           <template #action="{ record }">
             <a-space>
               <a-button size="mini" @click="showArticles(record)">文章列表</a-button>
@@ -103,7 +116,7 @@
             <a-list-item class="mobile-list-item">
               <a-list-item-meta
                 :title="item.mp_name"
-                :description="`ID: ${item.mp_id}`"
+                :description="getMobileDescription(item)"
               >
                 <template #avatar>
                   <a-image
@@ -118,7 +131,15 @@
               </a-list-item-meta>
               <template #actions>
                 <a-space direction="vertical" :size="4">
-                  <a-tag v-if="item.category" color="blue" size="small">{{ item.category }}</a-tag>
+                  <a-space :size="4">
+                    <a-tag v-if="item.category" color="blue" size="small">{{ item.category }}</a-tag>
+                    <a-tag color="arcoblue" size="small">
+                      {{ item.article_count || 0 }} 篇
+                    </a-tag>
+                  </a-space>
+                  <a-tag v-if="item.last_publish_time" size="small" style="font-size: 11px;">
+                    {{ formatPublishTime(item.last_publish_time) }}
+                  </a-tag>
                   <a-tag :color="item.status ? 'green' : 'red'" size="small">
                     {{ item.status ? '已启用' : '已禁用' }}
                   </a-tag>
@@ -267,7 +288,15 @@ const handleResize = () => {
   isMobile.value = window.innerWidth < 768
 }
 
-const columns = [    {      title: "名称",      dataIndex: "mp_name",      slotName: "mp_name"    },    { title: "分类", slotName: "category" },    { title: "备注", dataIndex: "remarks", ellipsis: true, tooltip: true },    { title: "状态", slotName: "status" },    { title: "操作", slotName: "action" }  ]
+const columns = [
+  { title: "名称", dataIndex: "mp_name", slotName: "mp_name", width: 200 },
+  { title: "分类", slotName: "category", width: 100 },
+  { title: "备注", dataIndex: "remarks", ellipsis: true, tooltip: true, width: 150 },
+  { title: "最后发布", slotName: "last_publish_time", width: 160 },
+  { title: "文章数", slotName: "article_count", width: 80 },
+  { title: "状态", slotName: "status", width: 80 },
+  { title: "操作", slotName: "action", width: 200 }
+]
 
 const mpList = ref([])
 const loading = ref(false)
@@ -447,6 +476,48 @@ const fetchCategories = async () => {
 
 const getAvatarUrl = (url: string) => {
   return Avatar(url)
+}
+
+// 格式化发布时间
+const formatPublishTime = (timestamp: string) => {
+  if (!timestamp) return '-'
+  try {
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) {
+      return '今天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    } else if (diffDays === 1) {
+      return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    } else if (diffDays < 7) {
+      return diffDays + '天前'
+    } else if (diffDays < 30) {
+      const weeks = Math.floor(diffDays / 7)
+      return weeks + '周前'
+    } else if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30)
+      return months + '月前'
+    } else {
+      return date.toLocaleDateString('zh-CN')
+    }
+  } catch (error) {
+    console.error('时间格式化错误:', error)
+    return timestamp
+  }
+}
+
+// 获取移动端描述信息
+const getMobileDescription = (item: { remarks?: string; article_count?: number; id: string }) => {
+  const parts: string[] = []
+  if (item.remarks) {
+    parts.push(item.remarks)
+  }
+  if (item.article_count !== undefined) {
+    parts.push(`${item.article_count} 篇文章`)
+  }
+  return parts.length > 0 ? parts.join(' · ') : 'ID: ' + item.id
 }
 
 // 文章列表列定义
