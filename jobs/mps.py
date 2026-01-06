@@ -12,6 +12,7 @@ from driver.wx import WX_API
 from driver.success import Success
 from driver.browser_manager import BrowserManager
 import asyncio
+import random
 wx_db=db.Db(tag="任务调度")
 
 async def fetch_all_article():
@@ -60,15 +61,24 @@ async def do_job(mp=None,task:MessageTask=None):
             print_success(f"任务({task.id})[{mp.mp_name}]执行成功,{count}成功条数")
 
 from core.queue import TaskQueue
-def add_job(feeds:list[Feed]=None,task:MessageTask=None,isTest=False):
+async def add_job(feeds:list[Feed]=None,task:MessageTask=None,isTest=False):
     if isTest:
         TaskQueue.clear_queue()
+
+    # Read and validate messagetask_mp_delay config (default 2s, range 1-10s)
+    delay_base = cfg.get('messagetask_mp_delay', 2)
+    delay_base = max(1, min(10, float(delay_base)))  # Clamp to 1-10s range
+
     for feed in feeds:
         TaskQueue.add_task(do_job,feed,task)
         if isTest:
             print(f"测试任务，{feed.mp_name}，加入队列成功")
             reload_job()
             break
+        # Add delay with 30% random variation between each MP processing
+        actual_delay = delay_base * random.uniform(0.7, 1.3)
+        print(f'等待 {actual_delay:.2f}秒后处理下一个公众号...')
+        await asyncio.sleep(actual_delay)
         print(f"{feed.mp_name}，加入队列成功")
     print_success(TaskQueue.get_queue_info())
     pass
@@ -87,7 +97,7 @@ def reload_job():
     TaskQueue.clear_queue()
     start_job()
 
-def run(job_id:str=None,isTest=False):
+async def run(job_id:str=None,isTest=False):
     from .taskmsg import get_message_task
     tasks=get_message_task(job_id)
     if not tasks:
@@ -97,7 +107,7 @@ def run(job_id:str=None,isTest=False):
             #添加测试任务
             from core.print import print_warning
             print_warning(f"{task.name} 添加到队列运行")
-            add_job(get_feeds(task),task,isTest=isTest)
+            await add_job(get_feeds(task),task,isTest=isTest)
             pass
     return tasks
 def start_job(job_id:str=None):

@@ -143,7 +143,7 @@ async def run_message_task(
             "count":0,
             "list":[]
         }
-        tasks=run(task_id,isTest=isTest)
+        tasks=await run(task_id,isTest=isTest)
         count=0
         if not tasks:
             raise HTTPException(status_code=404, detail="Message task not found")
