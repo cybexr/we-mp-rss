@@ -43,6 +43,8 @@ class MpsApi(WxGather):
         session=self.session
         # 起始页数
         i = start_page
+        consecutive_empty_page = 0
+        page_has_items = False  # Track if current page has items
         while True:
             if i >= MaxPage:
                 break
@@ -51,10 +53,11 @@ class MpsApi(WxGather):
             print(f"第{i+1}页开始爬取\n")
             # 随机暂停几秒，避免过快的请求导致过快的被查到
             time.sleep(random.randint(0,interval))
+            page_has_items = False
             try:
                 headers = self.fix_header(url)
                 resp = session.get(url, headers=headers, params = params, verify=False)
-                
+
                 msg = resp.json()
 
                 self._cookies=resp.cookies
@@ -62,20 +65,33 @@ class MpsApi(WxGather):
                 if msg['base_resp']['ret'] == 200013:
                     super().Error("frequencey control, stop at {}".format(str(begin)))
                     break
-                
+
                 if msg['base_resp']['ret'] == 200003:
                     super().Error("Invalid Session, stop at {}".format(str(begin)),code="Invalid Session")
                     break
-                
+
                 # 如果返回的内容中为空则结束
                 if 'app_msg_list' not in msg:
                     super().Error("all ariticle parsed")
                     break
                 if msg['base_resp']['ret'] != 0:
                     super().Error("错误原因:{}:代码:{}".format(msg['base_resp']['err_msg'],msg['base_resp']['ret']),code=msg['base_resp']['err_msg'])
-                    break    
+                    break
                 if "app_msg_list" in msg:
-                    for item in msg["app_msg_list"]:
+                    app_msg_list = msg.get("app_msg_list", [])
+
+                    # Check if page is empty
+                    if len(app_msg_list) == 0:
+                        consecutive_empty_page += 1
+                        print(f"第{i+1}页无文章，连续空页计数: {consecutive_empty_page}/3")
+                        if consecutive_empty_page >= 3:
+                            print("连续3页无文章，提前停止翻页")
+                            break  # Break the while loop
+                    else:
+                        consecutive_empty_page = 0
+                        page_has_items = True
+
+                    for item in app_msg_list:
                         time.sleep(random.randint(1,3))
                         # info = '"{}","{}","{}","{}"'.format(str(item["aid"]), item['title'], item['link'], str(item['create_time']))
                         if Gather_Content:
@@ -98,6 +114,8 @@ class MpsApi(WxGather):
                 print(f"Request error: {e}")
                 break
             finally:
-                super().Item_Over(item={"mps_id":Mps_id,"mps_title":Mps_title},CallBack=Item_Over_CallBack)
+                # Only call Item_Over when items were actually processed
+                if page_has_items:
+                    super().Item_Over(item={"mps_id":Mps_id,"mps_title":Mps_title},CallBack=Item_Over_CallBack)
         super().Over(CallBack=Over_CallBack)
         pass
