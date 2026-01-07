@@ -47,13 +47,22 @@ async def qr_image(current_user=Depends(get_current_user)):
 @router.get("/qr/status",summary="获取扫描状态")
 async def qr_status(current_user=Depends(get_current_user)):
     #  from driver.success import  getStatus
-     return success_response({
-          "login_status":await WX_API.HasLogin(),
-     })    
+    # Handle both sync (wx_api) and async (wx) implementations
+    import inspect
+    has_login_result = WX_API.HasLogin()
+    if inspect.iscoroutine(has_login_result):
+        has_login_result = await has_login_result
+    return success_response({
+        "login_status": has_login_result,
+    })
 @router.get("/qr/over",summary="扫码完成")
 async def qr_success(current_user=Depends(get_current_user)):
-     result = await WX_API.Close()
-     return success_response(result)    
+    # Handle both sync (wx_api) and async (wx) implementations
+    import inspect
+    close_result = WX_API.Close()
+    if inspect.iscoroutine(close_result):
+        close_result = await close_result
+    return success_response(close_result)    
 @router.post("/login", summary="用户登录")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
