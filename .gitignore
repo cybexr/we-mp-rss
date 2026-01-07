@@ -11,6 +11,7 @@ static/
 # sensitive files
 config.yaml
 
+.venv/
 __pycache__
 *.xml
 *.tmp

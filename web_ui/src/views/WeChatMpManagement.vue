@@ -276,37 +276,39 @@
       </a-table>
     </a-modal>
 
-    <a-drawer
+    <a-modal
       v-model:visible="articleDetailDrawerVisible"
       title="文章详情"
-      width="800"
+      :width="1000"
       :footer="false"
+      @cancel="articleDetailDrawerVisible = false"
     >
       <div v-if="currentArticle" class="article-detail">
         <h2>{{ currentArticle.title }}</h2>
         <a-descriptions :column="1" bordered size="small">
           <a-descriptions-item label="公众号">{{ currentArticle.mp_name }}</a-descriptions-item>
           <a-descriptions-item label="发布时间">{{ formatTimestamp(currentArticle.publish_time) }}</a-descriptions-item>
+          <a-descriptions-item label="更新时间">{{ currentArticle.time }}</a-descriptions-item>
           <a-descriptions-item label="链接">
-            <a :href="currentArticle.link" target="_blank" rel="noopener">{{ currentArticle.link }}</a>
+            <a :href="currentArticle.url || currentArticle.link" target="_blank" rel="noopener">{{ currentArticle.url || currentArticle.link }}</a>
           </a-descriptions-item>
         </a-descriptions>
         <a-divider />
         <div class="article-content" v-html="currentArticle.content"></div>
       </div>
-    </a-drawer>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getCategories, batchUpdateCategory } from '@/api/subscription'
-import { getArticles } from '@/api/article'
+import { getArticles, getArticleDetail } from '@/api/article'
 import { getToken } from '@/utils/auth'
-import { Avatar } from '@/utils/constants'
+import { Avatar, ProxyImage } from '@/utils/constants'
 import { Message, Modal } from '@arco-design/web-vue'
 import { IconEye } from '@arco-design/web-vue/es/icon'
-import { formatTimestamp } from '@/utils/date'
+import { formatTimestamp, formatDateTime } from '@/utils/date'
 
 const headers = { Authorization: `Bearer ${getToken()}` }
 
@@ -615,9 +617,28 @@ const handleArticlePageChange = (page) => {
 }
 
 // 查看文章详情
-const viewArticle = (record) => {
-  currentArticle.value = record
-  articleDetailDrawerVisible.value = true
+const viewArticle = async (record) => {
+  try {
+    // 获取完整的文章详情
+    const article = await getArticleDetail(record.id, 0)
+
+    // 处理文章内容（图片代理等）
+    currentArticle.value = {
+      id: article.id,
+      title: article.title,
+      content: ProxyImage(article),
+      mp_name: article.mp_name,
+      publish_time: article.publish_time,
+      time: formatDateTime(article.created_at),
+      url: article.url,
+      link: article.link
+    }
+
+    articleDetailDrawerVisible.value = true
+  } catch (error) {
+    console.error('获取文章详情错误:', error)
+    Message.error('获取文章详情失败')
+  }
 }
 
 const showBatchCategoryModal = () => {
