@@ -18,7 +18,7 @@ async def fetch_articles_without_content():
     try:
         # 查询content为空的文章 - 使用异步session
         async with DB.async_session_factory() as session:
-            stmt = select(Article).where(or_(Article.content.is_(None), Article.content == "")).limit(10)
+            stmt = select(Article).where(or_(Article.content.is_(None), Article.content == "")).order_by(Article.publish_time.desc()).limit(10)
             result = await session.execute(stmt)
             articles = result.scalars().all()
             if not articles:
