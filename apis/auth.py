@@ -25,7 +25,11 @@ def ApiSuccess(data):
 @router.get("/qr/code", summary="获取登录二维码")
 async def get_qrcode(current_user=Depends(get_current_user)):
     # 验证用户权限 - 只有管理员可以访问敏感的登录二维码功能
-    if current_user.get('role') != 'admin':
+    # Check both role field and username as fallback for databases with unset role values
+    if current_user.get('role') != 'admin' and current_user.get('username') != 'admin':
+        # Log permission check failure for diagnostics (without exposing sensitive data)
+        from core.print import print_warning
+        print_warning(f"Permission denied for user: username='{current_user.get('username')}', role='{current_user.get('role')}'")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=error_response(
