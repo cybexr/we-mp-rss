@@ -626,7 +626,7 @@ const viewArticle = async (record) => {
     currentArticle.value = {
       id: article.id,
       title: article.title,
-      content: ProxyImage(article),
+      content: ProxyImage(article.content),
       mp_name: article.mp_name,
       publish_time: article.publish_time,
       time: formatDateTime(article.created_at),
