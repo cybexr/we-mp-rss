@@ -31,6 +31,7 @@ export interface Article {
  * @property search 搜索关键词
  * @property status 文章状态
  * @property mp_id 公众号ID
+ * @property category 分类名称（用于获取该分类下所有公众号的文章）
  */
 export interface ArticleListParams {
   offset?: number
@@ -38,6 +39,7 @@ export interface ArticleListParams {
   search?: string
   status?: number
   mp_id?: string
+  category?: string  // 新增：支持按分类筛选文章
 }
 
 /**
@@ -62,10 +64,11 @@ export const getArticles = (params: ArticleListParams) => {
     limit: params.pageSize || 10,
     search: params.search,
     status: params.status,
-    mp_id: params.mp_id
+    mp_id: params.mp_id,
+    category: params.category  // 新增：支持按分类筛选
   }
-  return http.get<ArticleListResult>('/wx/articles', { 
-    params: apiParams 
+  return http.get<ArticleListResult>('/wx/articles', {
+    params: apiParams
   })
 }
 

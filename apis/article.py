@@ -139,6 +139,7 @@ async def get_articles(
     status: str = Query(None),
     search: str = Query(None),
     mp_id: str = Query(None),
+    category: str = Query(None),  # 新增：支持按分类筛选文章
     has_content:bool=Query(False),
     current_user: dict = Depends(get_current_user)
 ):
@@ -157,6 +158,18 @@ async def get_articles(
                 query = query.where(Article.status != DATA_STATUS.DELETED)
             if mp_id:
                 query = query.where(Article.mp_id == mp_id)
+            # 新增：支持按分类查询（查询该分类下所有公众号的文章）
+            if category:
+                from core.models.feed import Feed
+                # 根据category查找所有对应的Feed
+                feed_query = select(Feed.id).where(Feed.category == category)
+                feed_result = await session.execute(feed_query)
+                mp_id_list = feed_result.scalars().all()
+                if mp_id_list:
+                    query = query.where(Article.mp_id.in_(mp_id_list))
+                else:
+                    # 如果该分类下没有公众号，返回空结果
+                    query = query.where(Article.mp_id == "")
             if search:
                 search_conditions = format_search_kw(search)
                 query = query.where(search_conditions)
