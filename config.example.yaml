@@ -110,6 +110,10 @@ gather:
   browser_type: ${BROWSER_TYPE:-chromium}
   #文章内容采集请求间隔 单位秒 默认2秒 允许值 1-10秒之间 (实际延迟为配置值的±30%随机浮动)
   content_req_delay: ${GATHER.CONTENT_REQ_DELAY:-2}
+  #每批处理的最大文章数 默认10 允许值 1-1000 (定时任务每次运行处理的文章数量)
+  content_max_articles_per_batch: ${GATHER.CONTENT_MAX_ARTICLES_PER_BATCH:-10}
+  #浏览器重启阈值 处理多少篇文章后重启浏览器 默认100 允许值 1-1000 (避免内存泄漏和风控检测)
+  content_browser_restart_req: ${GATHER.CONTENT_BROWSER_RESTART_REQ:-100}
 #安全配置
 safe:
     # 需要隐藏的配置信息，用逗号分隔 如：db,secret,token等 

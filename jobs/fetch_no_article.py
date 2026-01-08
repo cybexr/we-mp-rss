@@ -13,12 +13,14 @@ async def fetch_articles_without_content():
     from driver.browser_manager import BrowserManager
     from sqlalchemy import select, or_
 
-    ga=WxGather().Model()
+    # 查询content为空的文章 - 使用异步session
+    async with DB.async_session_factory() as session:
+        try:
+            # 使用 gather.content_max_articles_per_batch 配置，默认10，范围1-1000
+            max_articles_per_batch = cfg.get('gather.content_max_articles_per_batch', 10)
+            max_articles_per_batch = max(1, min(1000, int(max_articles_per_batch)))
 
-    try:
-        # 查询content为空的文章 - 使用异步session
-        async with DB.async_session_factory() as session:
-            stmt = select(Article).where(or_(Article.content.is_(None), Article.content == "")).order_by(Article.publish_time.desc()).limit(10)
+            stmt = select(Article).where(or_(Article.content.is_(None), Article.content == "")).order_by(Article.publish_time.desc()).limit(max_articles_per_batch)
             result = await session.execute(stmt)
             articles = result.scalars().all()
             if not articles:
@@ -56,7 +58,10 @@ async def fetch_articles_without_content():
                         article_data = await browser_manager.fetch_article(url, mobile_mode=False)
                         content = article_data.get("content")
                     else:
-                        content = ga.content_extract(url)
+                        # 仅在非web模式下初始化WxGather
+                        if 'ga' not in locals():
+                            ga = WxGather().Model()
+                        content = await ga.content_extract(url)
                     if content:
                         # 更新内容
                         article.content = content
@@ -67,9 +72,9 @@ async def fetch_articles_without_content():
                         print_success(f"成功更新文章 {article.title} 的内容")
                     else:
                         print_error(f"获取文章 {article.title} 内容失败")
-    except Exception as e:
-        print(f"处理过程中发生错误: {e}")
-        await session.rollback()
+        except Exception as e:
+            print(f"处理过程中发生错误: {e}")
+            await session.rollback()
 from core.task import TaskScheduler
 from core.queue import TaskQueueManager
 scheduler=TaskScheduler()
