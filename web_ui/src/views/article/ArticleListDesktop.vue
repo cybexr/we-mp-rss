@@ -756,14 +756,11 @@ const fetchMpList = async () => {
     if (mpSearchText.value) {
       params.kw = mpSearchText.value
     }
-    if (selectedMpCategory.value === '__BLANK__') {
-      // Filter for blank/uncategorized categories
-      params.category = ''
-    } else if (selectedMpCategory.value) {
-      // Filter for specific category (but not empty string "All Categories")
+    // Only add category parameter if a category is selected (including '__BLANK__')
+    // Empty string means "All Categories" - no filter
+    if (selectedMpCategory.value && selectedMpCategory.value !== '') {
       params.category = selectedMpCategory.value
     }
-    // If category is empty string ('All'), don't send category parameter
     const res = await getSubscriptions(params)
 
     mpList.value = res.list.map(item => ({

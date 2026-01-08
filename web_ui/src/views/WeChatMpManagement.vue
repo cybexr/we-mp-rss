@@ -77,6 +77,12 @@
             <span v-else style="color: #c9cdd4;">-</span>
           </template>
 
+          <template #mp_intro="{ record }">
+            <div class="mp-intro-cell">
+              {{ record.mp_intro || '-' }}
+            </div>
+          </template>
+
           <template #last_publish_time="{ record }">
             <span v-if="record.last_publish_time" style="font-size: 12px;">
               {{ formatPublishTime(record.last_publish_time) }}
@@ -320,6 +326,7 @@ const handleResize = () => {
 const columns = [
   { title: "名称", dataIndex: "mp_name", slotName: "mp_name", width: 200 },
   { title: "分类", slotName: "category", width: 100 },
+  { title: "简介", dataIndex: "mp_intro", slotName: "mp_intro", width: 200, ellipsis: true, tooltip: true },
   { title: "备注", dataIndex: "remarks", ellipsis: true, tooltip: true, width: 150 },
   { title: "最后发布", slotName: "last_publish_time", width: 160 },
   { title: "文章数", slotName: "article_count", width: 80 },
@@ -713,6 +720,18 @@ onBeforeUnmount(() => {
   margin-top: 8px;
   font-size: 12px;
   color: var(--color-text-3);
+}
+
+.mp-intro-cell {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.5;
+  font-size: 13px;
+  color: var(--color-text-2);
+  word-break: break-word;
 }
 
 .article-detail h2 {
