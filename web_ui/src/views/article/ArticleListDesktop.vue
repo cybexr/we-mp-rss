@@ -75,7 +75,7 @@
       </a-layout-sider>
 
       <a-layout-content :style="{ padding: '20px', width: '100%' }">
-        <a-page-header :title="isShowingAllCategory ? `全部（${categoryForArticles.value}）` : (activeFeed ? activeFeed.name : '全部')" :subtitle="'管理您的公众号订阅内容'" :show-back="false">
+        <a-page-header :title="activeMpId.value === '' && selectedMpCategory.value ? `全部（${selectedMpCategory.value}）` : (activeFeed ? activeFeed.name : '全部')" :subtitle="'管理您的公众号订阅内容'" :show-back="false">
           <template #extra>
             <a-space>
               <span style="font-size: 12px; color: var(--color-text-3);">{{ issourceUrl ? '原链接' : '内链' }}</span>
@@ -256,8 +256,6 @@ const filterStatus = ref('')
 const mpSearchText = ref('')
 const selectedMpCategory = ref('')
 const categories = ref<string[]>([])
-const isShowingAllCategory = ref(false)  // 新增：标记是否显示"全部（{category}）"模式
-const categoryForArticles = ref('')  // 新增：存储用于文章查询的分类名
 
 // 计算属性：动态生成"全部"选项的标签
 const allCategoryLabel = computed(() => {
@@ -379,28 +377,14 @@ const handleMpSearch = () => {
 }
 
 const handleMpCategoryChange = (value: string) => {
-  const previousCategory = selectedMpCategory.value
   selectedMpCategory.value = value
   mpPagination.value.current = 1
   fetchMpList()
 
-  // 如果点击的是"全部（{category}）"选项（value为空字符串，且之前有选中的分类）
-  // 则触发"显示该分类下所有公众号的文章"模式
-  if (value === '' && previousCategory !== '') {
-    // 设置特殊标记：显示该分类下所有公众号的文章
-    isShowingAllCategory.value = true
-    categoryForArticles.value = previousCategory  // 保存之前的分类名
-    activeMpId.value = ''
-    pagination.value.current = 1
-    fetchArticles()
-  } else {
-    // 正常的分类筛选或重置
-    isShowingAllCategory.value = false
-    categoryForArticles.value = ''
-    activeMpId.value = ''
-    pagination.value.current = 1
-    fetchArticles()
-  }
+  // Reset active MP and refresh articles when category changes
+  activeMpId.value = ''
+  pagination.value.current = 1
+  fetchArticles()
 }
 
 const fetchCategories = async () => {
@@ -418,8 +402,6 @@ const activeFeed = ref({
 })
 const handleMpClick = (mpId: string) => {
   activeMpId.value = mpId
-  isShowingAllCategory.value = false  // 清除"全部（{category}）"模式
-  categoryForArticles.value = ''
   pagination.value.current = 1
   activeFeed.value = mpList.value.find(item => item.id === activeMpId.value)
   console.log(activeFeed.value)
@@ -436,7 +418,7 @@ const fetchArticles = async () => {
       search: searchText.value,
       status: filterStatus.value,
       mp_id: activeMpId.value,
-      category: isShowingAllCategory.value ? categoryForArticles.value : undefined
+      category: activeMpId.value === '' && selectedMpCategory.value ? selectedMpCategory.value : undefined
     })
 
     const res = await getArticles({
@@ -445,7 +427,7 @@ const fetchArticles = async () => {
       search: searchText.value,
       status: filterStatus.value,
       mp_id: activeMpId.value,
-      category: isShowingAllCategory.value ? categoryForArticles.value : undefined  // 新增：支持按分类查询
+      category: activeMpId.value === '' && selectedMpCategory.value ? selectedMpCategory.value : undefined
     })
 
     // 确保数据包含必要字段
