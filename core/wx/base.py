@@ -6,7 +6,7 @@ from core.models import Feed
 from core.db import DB
 from core.models.feed import Feed
 from .cfg import cfg,wx_cfg
-from core.print import print_error,print_info, print_warning
+from core.print import print_error,print_info, print_warning, JobLogger
 from core.rss import RSS
 from driver.success import setStatus
 from driver.wxarticle import WXArticleFetcher
@@ -69,8 +69,9 @@ class WxGather:
         self.is_add=is_add
         self._cookies={}
         self.start_time = None  # 记录开始时间
+        self.job_logger = None  # JobLogger instance for contextual logging
         session=  requests.Session()
-        timeout = (5, 10)  
+        timeout = (5, 10)
         session.timeout = timeout
         self.session=session
         self.get_token()
@@ -195,6 +196,27 @@ class WxGather:
              return
         import time
         self.start_time = time.time()  # 记录开始执行时间
+
+        # Get MP name for logging context
+        mp_name = ""
+        try:
+            from core.db import DB
+            session = DB.get_session()
+            try:
+                feed = session.query(Feed).filter(Feed.id == mp_id).first()
+                if feed:
+                    mp_name = feed.mp_name or mp_id or ""
+                else:
+                    mp_name = mp_id or ""
+            finally:
+                pass
+        except Exception:
+            mp_name = mp_id or ""
+
+        # Initialize JobLogger context for list fetching
+        self.job_logger = JobLogger(JobLogger.LIST_FETCH, mp_name=mp_name)
+        self.job_logger.__enter__()
+
         self.update_mps(mp_id,Feed(
           sync_time=int(time.time()),
           update_time=int(time.time()),
@@ -246,8 +268,11 @@ class WxGather:
             threading.Thread(target=send_wx_code,args=(f"公众号平台登录失效,请重新登录",)).start()
             # send_wx_code(f"公众号平台登录失效,请重新登录")
             raise Exception(error)
-        # raise Exception(error)
-        print_error(error)
+        # Use job_logger for error messages if available
+        if self.job_logger:
+            self.job_logger.print_error(error)
+        else:
+            print_error(error)
 
     def Over(self,CallBack=None):
         import time
@@ -255,31 +280,43 @@ class WxGather:
         execution_time = 0
         if self.start_time is not None:
             execution_time = end_time - self.start_time
-        
+
+        # Exit JobLogger context
+        if self.job_logger:
+            self.job_logger.__exit__(None, None, None)
+
         if getattr(self, 'articles', None) is not None:
-            print(f"成功{len(self.articles)}条")
+            if self.job_logger:
+                self.job_logger.print_success(f"成功{len(self.articles)}条")
+            else:
+                print(f"成功{len(self.articles)}条")
             rss=RSS()
             mp_id=""
             try:
                 mp_id=self.articles[0]['mp_id']
             except:
                 pass
-            rss.clear_cache(mp_id=mp_id)  
-        
+            rss.clear_cache(mp_id=mp_id)
+
         # 输出执行时间统计
         if execution_time > 0:
+            time_msg = ""
             if execution_time < 60:
-                print(f"执行耗时: {execution_time:.2f}秒")
+                time_msg = f"执行耗时: {execution_time:.2f}秒"
             elif execution_time < 3600:
                 minutes = int(execution_time // 60)
                 seconds = execution_time % 60
-                print(f"执行耗时: {minutes}分{seconds:.2f}秒")
+                time_msg = f"执行耗时: {minutes}分{seconds:.2f}秒"
             else:
                 hours = int(execution_time // 3600)
                 minutes = int((execution_time % 3600) // 60)
                 seconds = execution_time % 60
-                print(f"执行耗时: {hours}小时{minutes}分{seconds:.2f}秒")
-        
+                time_msg = f"执行耗时: {hours}小时{minutes}分{seconds:.2f}秒"
+            if self.job_logger:
+                self.job_logger.print_info(time_msg)
+            else:
+                print(time_msg)
+
         if CallBack is not None:
             CallBack(self.articles)
 
