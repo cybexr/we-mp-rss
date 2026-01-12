@@ -11,7 +11,7 @@ import asyncio
 import random
 from typing import Dict, Optional, Callable
 from playwright.async_api import Page
-from core.print import print_info, print_warning, print_error, print_success
+from core.print import print_info, print_warning, print_error, print_success, JobLogger
 
 
 class BrowserManager:
@@ -154,6 +154,12 @@ class BrowserManager:
         if self._should_restart_browser():
             await self._restart_browser(mobile_mode)
 
+        # Extract article title from URL for logging context (use last part of URL as fallback)
+        article_context = url.split('/')[-1][:30] if url else "unknown"
+
+        # Use JobLogger for content fetching context
+        job_logger = JobLogger(JobLogger.CONTENT_FETCH, mp_name=article_context)
+
         try:
             # Create fetcher with current page AFTER any browser restart
             # This ensures the fetcher always holds a valid page reference
@@ -164,7 +170,11 @@ class BrowserManager:
 
             # Increment counter
             self.articles_fetched += 1
-            print_success(f"Successfully fetched article {self.articles_fetched}/{self.max_articles_per_browser}")
+
+            # Get actual article title from result if available
+            actual_title = result.get("title", article_context)
+            job_logger = JobLogger(JobLogger.CONTENT_FETCH, mp_name=actual_title[:30] if actual_title else article_context)
+            job_logger.print_success(f"Successfully fetched article {self.articles_fetched}/{self.max_articles_per_browser}")
 
             # Add delay before next request (not on last article before restart)
             if not self._should_restart_browser():
@@ -173,7 +183,7 @@ class BrowserManager:
             return result
 
         except Exception as e:
-            print_error(f"Error fetching article: {str(e)}")
+            job_logger.print_error(f"Error fetching article: {str(e)}")
             # Rely on async with context manager for cleanup
             raise
 
