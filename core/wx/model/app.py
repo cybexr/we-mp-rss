@@ -109,7 +109,9 @@ class MpsAppMsg(WxGather):
             params["begin"] = str(begin)
             print(f"第{i+1}页开始爬取\n")
             # 随机暂停几秒，避免过快的请求导致过快的被查到
-            await asyncio.sleep(random.randint(0,interval))
+            actual_delay = random.randint(1, max(2, interval))
+            print(f"Pagination delay: {actual_delay}s (interval: {interval}s)")
+            await asyncio.sleep(actual_delay)
             page_has_items = False
             try:
                 headers = self.fix_header(url)
