@@ -146,3 +146,103 @@ def print_warning(text, **kwargs):
     printer.print_warning(text, **kwargs)
 def print_success(text, **kwargs):
     printer.print_success(text, **kwargs)
+
+
+class JobLogger:
+    """
+    Contextual logging utility for job-specific log prefixes.
+
+    Provides automatic context-based prefixes for log messages to distinguish
+    between different job types (LIST_FETCH, CONTENT_FETCH, SYNC_CONTENT).
+
+    Supports nested contexts for multi-level prefixing (e.g., MP -> Page -> Article).
+
+    Usage:
+        with JobLogger("LIST_FETCH", mp_name="中国档案报"):
+            logger.print_info("Fetching articles...")
+            # Output: [LIST_FETCH:中国档案报] Fetching articles...
+
+        # Nested context example
+        with JobLogger("LIST_FETCH", mp_name="中国档案报") as outer:
+            with outer.child_context("P107"):
+                outer.print_info("Processing page...")
+                # Output: [LIST_FETCH:中国档案报:P107] Processing page...
+    """
+
+    # Job type constants
+    LIST_FETCH = "LIST_FETCH"
+    CONTENT_FETCH = "CONTENT_FETCH"
+    SYNC_CONTENT = "SYNC_CONTENT"
+
+    def __init__(self, job_type: str, mp_name: str = ""):
+        """
+        Initialize JobLogger with job type and optional MP name.
+
+        Args:
+            job_type: Type of job (LIST_FETCH, CONTENT_FETCH, SYNC_CONTENT)
+            mp_name: Optional MP/publication name for context
+        """
+        self.job_type = job_type
+        self.mp_name = mp_name
+        self._context_stack = [(job_type, mp_name)]
+
+    def format_log_message(self, message: str) -> str:
+        """
+        Construct a prefixed log message with current context stack.
+
+        Args:
+            message: The original log message
+
+        Returns:
+            Formatted message with context prefix like [JOB_TYPE:mp_name:context]
+        """
+        parts = []
+        for job_type, context in self._context_stack:
+            if job_type:
+                parts.append(job_type)
+            if context:
+                parts.append(context)
+
+        if parts:
+            prefix = ":".join(parts)
+            return f"[{prefix}] {message}"
+        return message
+
+    def print_info(self, text, **kwargs):
+        """Print info message with context prefix."""
+        printer.print_info(self.format_log_message(text), **kwargs)
+
+    def print_warning(self, text, **kwargs):
+        """Print warning message with context prefix."""
+        printer.print_warning(self.format_log_message(text), **kwargs)
+
+    def print_error(self, text, **kwargs):
+        """Print error message with context prefix."""
+        printer.print_error(self.format_log_message(text), **kwargs)
+
+    def print_success(self, text, **kwargs):
+        """Print success message with context prefix."""
+        printer.print_success(self.format_log_message(text), **kwargs)
+
+    def child_context(self, additional_context: str):
+        """
+        Create a child context with additional context information.
+
+        Args:
+            additional_context: Additional context string (e.g., page number, article title)
+
+        Returns:
+            JobLogger instance with nested context
+        """
+        child = JobLogger(self.job_type, self.mp_name)
+        child._context_stack = self._context_stack.copy()
+        child._context_stack.append(("", additional_context))
+        return child
+
+    def __enter__(self):
+        """Enter context manager - push current context to stack."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager - pop context from stack."""
+        return False
