@@ -328,8 +328,8 @@ const columns = [
   { title: "分类", slotName: "category", width: 100 },
   { title: "简介", dataIndex: "mp_intro", slotName: "mp_intro", width: 200, ellipsis: true, tooltip: true },
   { title: "备注", dataIndex: "remarks", ellipsis: true, tooltip: true, width: 150 },
-  { title: "最后发布", slotName: "last_publish_time", width: 160 },
-  { title: "文章数", slotName: "article_count", width: 80 },
+  { title: "最后发布", dataIndex: "last_publish_time", slotName: "last_publish_time", width: 160, sortable: { sortDirections: ['ascend', 'descend'] } },
+  { title: "文章数", dataIndex: "article_count", slotName: "article_count", width: 80, sortable: { sortDirections: ['ascend', 'descend'] } },
   { title: "状态", slotName: "status", width: 80 },
   { title: "操作", slotName: "action", width: 200 }
 ]
