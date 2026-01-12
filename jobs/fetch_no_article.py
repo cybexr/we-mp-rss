@@ -1,7 +1,7 @@
 from core.models.article import Article,DATA_STATUS
 import core.db as db
 from core.wx.base import WxGather
-from core.print import print_success,print_error,print_warning
+from core.print import print_success,print_error,print_warning, JobLogger
 import random
 import asyncio
 DB=db.Db(tag="内容修正")
@@ -44,34 +44,39 @@ async def fetch_articles_without_content():
                 max_delay=max_delay
             ) as browser_manager:
 
-                for article in articles:
-                    # 构建URL
-                    if article.url:
-                        url = article.url
-                    else:
-                        url = f"https://mp.weixin.qq.com/s/{article.id}"
+                # Use JobLogger for sync content job context
+                with JobLogger(JobLogger.SYNC_CONTENT, mp_name="") as job_logger:
+                    for article in articles:
+                        # 构建URL
+                        if article.url:
+                            url = article.url
+                        else:
+                            url = f"https://mp.weixin.qq.com/s/{article.id}"
 
-                    print(f"正在处理文章: {article.title}, URL: {url}")
+                        # Create child context with article title
+                        article_title = article.title[:30] if article.title else article.id
+                        article_logger = job_logger.child_context(article_title)
+                        article_logger.print_info(f"正在处理文章, URL: {url}")
 
-                    # 获取内容
-                    if cfg.get("gather.content_mode","web"):
-                        article_data = await browser_manager.fetch_article(url, mobile_mode=False)
-                        content = article_data.get("content")
-                    else:
-                        # 仅在非web模式下初始化WxGather
-                        if 'ga' not in locals():
-                            ga = WxGather().Model()
-                        content = await ga.content_extract(url)
-                    if content:
-                        # 更新内容
-                        article.content = content
-                        if  content=="DELETED":
-                            print_error(f"获取文章 {article.title} 内容已被发布者删除")
-                            article.status = DATA_STATUS.DELETED
-                        await session.commit()
-                        print_success(f"成功更新文章 {article.title} 的内容")
-                    else:
-                        print_error(f"获取文章 {article.title} 内容失败")
+                        # 获取内容
+                        if cfg.get("gather.content_mode","web"):
+                            article_data = await browser_manager.fetch_article(url, mobile_mode=False)
+                            content = article_data.get("content")
+                        else:
+                            # 仅在非web模式下初始化WxGather
+                            if 'ga' not in locals():
+                                ga = WxGather().Model()
+                            content = await ga.content_extract(url)
+                        if content:
+                            # 更新内容
+                            article.content = content
+                            if  content=="DELETED":
+                                article_logger.print_error("内容已被发布者删除")
+                                article.status = DATA_STATUS.DELETED
+                            await session.commit()
+                            article_logger.print_success("成功更新文章内容")
+                        else:
+                            article_logger.print_error("获取文章内容失败")
         except Exception as e:
             print(f"处理过程中发生错误: {e}")
             await session.rollback()
