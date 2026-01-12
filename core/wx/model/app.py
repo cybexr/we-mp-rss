@@ -7,7 +7,7 @@ import aiohttp
 import yaml
 import re
 from bs4 import BeautifulSoup
-from core.wx.base import WxGather
+from core.wx.base import WxGather, PageCrawlStats
 from core.print import print_error, print_info, print_warning
 from core.log import logger
 from core.config import cfg
@@ -107,12 +107,17 @@ class MpsAppMsg(WxGather):
                 break
             begin = i * count
             params["begin"] = str(begin)
-            print(f"第{i+1}页开始爬取\n")
+            # Create page stats tracker
+            page_stats = PageCrawlStats(mp_name=Mps_title, page_num=i+1)
+            page_stats.start()
+            print(f"[{Mps_title}] Page {i+1} start crawling\n")
             # 随机暂停几秒，避免过快的请求导致过快的被查到
             actual_delay = random.randint(1, max(2, interval))
             print(f"Pagination delay: {actual_delay}s (interval: {interval}s)")
             await asyncio.sleep(actual_delay)
             page_has_items = False
+            articles_found_this_page = 0
+            records_inserted_this_page = 0
             try:
                 headers = self.fix_header(url)
                 # Use aiohttp for async HTTP request
@@ -142,16 +147,21 @@ class MpsAppMsg(WxGather):
                     msg["publish_page"]=json.loads(msg['publish_page'])
                     publish_list = msg["publish_page"].get('publish_list', [])
 
+                    # Track articles found on this page
+                    articles_found_this_page = len(publish_list)
+
                     # Check if page is empty
                     if len(publish_list) == 0:
                         consecutive_empty_page += 1
-                        print(f"第{i+1}页无文章，连续空页计数: {consecutive_empty_page}/3")
+                        print(f"Page {i+1} has no articles, consecutive empty page count: {consecutive_empty_page}/3")
                         if consecutive_empty_page >= 3:
-                            print("连续3页无文章，提前停止翻页")
+                            print("3 consecutive empty pages, stopping pagination")
                             break  # Break the while loop
                     else:
                         consecutive_empty_page = 0
                         page_has_items = True
+
+                    initial_articles_count = len(super().articles)
 
                     for item in publish_list:
                         if "publish_info" in item:
@@ -170,7 +180,17 @@ class MpsAppMsg(WxGather):
                                     item["mp_id"] = Mps_id
                                     if CallBack is not None:
                                         super().FillBack(CallBack=CallBack,data=item,Ext_Data={"mp_title":Mps_title,"mp_id":Mps_id})
-                    print(f"第{i+1}页爬取成功\n")
+
+                    # Track records inserted on this page
+                    records_inserted_this_page = len(super().articles) - initial_articles_count
+
+                    # Complete page stats and output detailed log
+                    page_stats.complete(articles_found_this_page, records_inserted_this_page)
+                    print(page_stats.format_log())
+
+                    # Increment parent statistics
+                    super().increment_page_stats(articles_found_this_page, records_inserted_this_page)
+
                 # 翻页
                 i += 1
             except (aiohttp.ClientTimeout, asyncio.TimeoutError):

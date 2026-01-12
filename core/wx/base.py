@@ -12,6 +12,49 @@ from driver.success import setStatus
 from driver.wxarticle import WXArticleFetcher
 from core.wait import Wait
 import random
+
+
+class PageCrawlStats:
+    """Track page-level crawl statistics including articles discovered, records inserted, and timing."""
+
+    def __init__(self, mp_name: str = "", page_num: int = 0):
+        self.mp_name = mp_name
+        self.page_num = page_num
+        self.articles_found = 0
+        self.records_inserted = 0
+        self.start_time = None
+        self.end_time = None
+
+    def start(self):
+        """Record the start time of the page crawl."""
+        self.start_time = time.time()
+
+    def complete(self, articles_found: int, records_inserted: int):
+        """Record completion with counts.
+
+        Args:
+            articles_found: Number of articles discovered on this page
+            records_inserted: Number of records successfully inserted
+        """
+        self.end_time = time.time()
+        self.articles_found = articles_found
+        self.records_inserted = records_inserted
+
+    @property
+    def elapsed_seconds(self) -> float:
+        """Calculate execution time in seconds."""
+        if self.start_time is None:
+            return 0.0
+        end = self.end_time if self.end_time is not None else time.time()
+        return end - self.start_time
+
+    def format_log(self) -> str:
+        """Generate formatted log message for this page crawl.
+
+        Returns:
+            Formatted string: "[mp_name] Page N: Found M articles, Inserted K records, Elapsed X.XXs"
+        """
+        return f"[{self.mp_name}] Page {self.page_num}: Found {self.articles_found} articles, Inserted {self.records_inserted} records, Elapsed {self.elapsed_seconds:.2f}s"
 # 定义一些常见的 User-Agent
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -70,11 +113,26 @@ class WxGather:
         self._cookies={}
         self.start_time = None  # 记录开始时间
         self.job_logger = None  # JobLogger instance for contextual logging
+        # Track total statistics across all pages
+        self.page_count = 0
+        self.total_articles_found = 0
+        self.total_records_inserted = 0
         session=  requests.Session()
         timeout = (5, 10)
         session.timeout = timeout
         self.session=session
         self.get_token()
+
+    def increment_page_stats(self, articles_found: int, records_inserted: int):
+        """Accumulate total statistics from each page.
+
+        Args:
+            articles_found: Number of articles discovered on this page
+            records_inserted: Number of records successfully inserted
+        """
+        self.page_count += 1
+        self.total_articles_found += articles_found
+        self.total_records_inserted += records_inserted
     def get_token(self):
         cfg.reload()
         wx_cfg.reload()
@@ -298,8 +356,28 @@ class WxGather:
                 pass
             rss.clear_cache(mp_id=mp_id)
 
-        # 输出执行时间统计
-        if execution_time > 0:
+        # Output job summary with total statistics
+        if self.page_count > 0:
+            # Format total time
+            total_time_str = ""
+            if execution_time < 60:
+                total_time_str = f"{execution_time:.2f}s"
+            else:
+                minutes = int(execution_time // 60)
+                seconds = execution_time % 60
+                total_time_str = f"{minutes}m{seconds:.0f}s"
+
+            # Calculate average time per page
+            avg_time = execution_time / self.page_count if self.page_count > 0 else 0
+            avg_time_str = f"{avg_time:.2f}s/page"
+
+            summary_msg = f"[Job Complete] Crawled {self.page_count} pages, Found {self.total_articles_found} articles, Inserted {self.total_records_inserted} records, Total time {total_time_str}, Avg {avg_time_str}"
+            if self.job_logger:
+                self.job_logger.print_info(summary_msg)
+            else:
+                print(summary_msg)
+        elif execution_time > 0:
+            # Fallback to original time output if no page stats
             time_msg = ""
             if execution_time < 60:
                 time_msg = f"执行耗时: {execution_time:.2f}秒"
