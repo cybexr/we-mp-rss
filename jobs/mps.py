@@ -39,7 +39,6 @@ def test(info:str):
 from core.models.message_task import MessageTask
 # from core.queue import TaskQueue
 from .webhook import web_hook
-interval=int(cfg.get("interval",60)) # 每隔多少秒执行一次
 
 async def do_job(mp=None,task:MessageTask=None):
         # TaskQueue.add_task(test,info=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -47,8 +46,16 @@ async def do_job(mp=None,task:MessageTask=None):
         print("执行任务")
         all_count=0
         wx=WxGather().Model()
+
+        # Read messagetask_mp_delay config for pagination delay (default 2s, clamped 1-10s)
+        delay_base = cfg.get('messagetask_mp_delay', 2)
+        delay_base = max(1, min(10, float(delay_base)))
+        # Calculate interval with 30% random variation for pagination delay
+        page_interval = int(delay_base * random.uniform(0.7, 1.3))
+        print(f"Pagination delay for [{mp.mp_name}]: {page_interval}s (base: {delay_base}s)")
+
         try:
-            await wx.get_Articles(mp.faker_id,CallBack=UpdateArticle,Mps_id=mp.id,Mps_title=mp.mp_name, MaxPage=1,Over_CallBack=Update_Over,interval=interval)
+            await wx.get_Articles(mp.faker_id,CallBack=UpdateArticle,Mps_id=mp.id,Mps_title=mp.mp_name, MaxPage=1,Over_CallBack=Update_Over,interval=page_interval)
         except Exception as e:
             print_error(e)
             # raise
