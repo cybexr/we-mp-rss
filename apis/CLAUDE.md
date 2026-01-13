@@ -50,6 +50,33 @@ The `apis` module contains all FastAPI route handlers and API endpoint definitio
   - Feed parsing and processing
   - RSS subscription management
 
+### Queue Management
+
+- `queue.py` - Dual-queue system for WeChat RSS collection (NEW)
+  - **Health Check** (`GET /queues/health`): Load balancer-compatible health endpoint
+    - Returns overall status: `healthy`, `degraded`, or `unhealthy`
+    - Includes both queue states and pending task counts
+    - Graceful degradation on errors (returns unhealthy status instead of 500)
+  - **Queue Status** (`GET /queues/status`): Real-time status of both queues
+    - Returns list_queue and content_queue status
+    - Fields: `is_paused`, `is_running`, `pending_tasks`, `tag`
+  - **List Queue Control**:
+    - `POST /queues/list/pause`: Pause article list collection queue
+    - `POST /queues/list/resume`: Resume article list collection queue
+    - Auto-triggered by WeChat QR code expiry/success events
+  - **Content Queue Control**:
+    - `POST /queues/content/pause`: Pause article content extraction queue
+    - `POST /queues/content/resume`: Resume article content extraction queue
+  - **Job Tracking** (`GET /queues/jobs`): List all jobs from both queues
+    - Optional filter by queue: `?queue_name=list|content|all`
+    - Returns job details: `job_id`, `status`, `task_name`, `progress`, `error`
+  - **Response Models**:
+    - `HealthCheckResponse`: Health status with queue details
+    - `QueueStatusResponse`: Individual queue status
+    - `JobStatusResponse`: Job execution details
+  - **Error Handling**: All endpoints include comprehensive try-catch with HTTPException
+  - **Integration**: Connected to `core.queue.GlobalQueueManager` singleton
+
 ### System Operations
 
 - `sys_info.py` - System information and status endpoints
@@ -118,6 +145,12 @@ All endpoints use the consistent response format defined in `base.py`:
 - Feed management
 - RSS parsing and processing
 - Subscription handling
+
+### Queue Management (`/queues`)
+- Real-time queue status monitoring
+- Pause/resume queue operations
+- Health checks for load balancers
+- Job tracking and management
 
 ### System Information (`/sys`, `/ver`)
 - System status and health checks
