@@ -101,7 +101,7 @@ class MpsApi(WxGather):
                         consecutive_empty_page = 0
                         page_has_items = True
 
-                    initial_articles_count = len(super().articles)
+                    inserted_count = 0
 
                     for item in app_msg_list:
                         time.sleep(random.randint(1,3))
@@ -115,10 +115,12 @@ class MpsApi(WxGather):
                         item["id"] = item["aid"]
                         item["mp_id"] = Mps_id
                         if CallBack is not None:
-                            super().FillBack(CallBack=CallBack,data=item,Ext_Data={"mp_title":Mps_title,"mp_id":Mps_id})
+                            # Track successful insertions by checking callback return value
+                            if super().FillBack(CallBack=CallBack,data=item,Ext_Data={"mp_title":Mps_title,"mp_id":Mps_id}):
+                                inserted_count += 1
 
                     # Track records inserted on this page
-                    records_inserted_this_page = len(super().articles) - initial_articles_count
+                    records_inserted_this_page = inserted_count
 
                     # Complete page stats and output detailed log
                     page_stats.complete(articles_found_this_page, records_inserted_this_page)
