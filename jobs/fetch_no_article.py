@@ -80,11 +80,28 @@ async def fetch_articles_without_content():
         except Exception as e:
             print(f"处理过程中发生错误: {e}")
             await session.rollback()
-from core.task import TaskScheduler
-from core.queue import TaskQueueManager
-scheduler=TaskScheduler()
-task_queue=TaskQueueManager()
-task_queue.run_task_background()
+"""
+Article Content Extraction Jobs - Dual-Queue Architecture
+
+This module handles article content extraction using browser automation.
+Uses GlobalQueueManager.content_queue for content extraction tasks.
+
+Architecture:
+    - content_queue: Article content extraction (independent from list_queue)
+    - list_queue: Article list collection (see mps.py)
+
+Queue Independence:
+    - content_queue runs independently, NOT affected by WeChat QR expiry
+    - Continues processing even when list_queue is paused
+    - Ensures content extraction progresses regardless of authentication state
+
+Usage:
+    from jobs.fetch_no_article import start_sync_content
+    start_sync_content()  # Start scheduled content extraction
+"""
+
+from core.task import GlobalScheduler
+from core.queue import GlobalQueueManager
 from core.config import cfg
 from core.print import print_success,print_warning
 
@@ -127,11 +144,11 @@ def start_sync_content():
     else:
         cron_exp = f"*/{interval} * * * *"  # Every N minutes
 
-    task_queue.clear_queue()
-    scheduler.clear_all_jobs()
-    job_id=scheduler.add_cron_job(fetch_articles_without_content,cron_expr=cron_exp)
+    GlobalQueueManager.content_queue.clear_queue()
+    GlobalScheduler.clear_all_jobs()
+    job_id=GlobalScheduler.add_cron_job(fetch_articles_without_content,cron_expr=cron_exp)
     print_success(f"已添自动同步文章内容任务: {job_id}, cron表达式: {cron_exp}")
-    scheduler.start()
+    GlobalScheduler.start()
 
 if __name__ == "__main__":
     asyncio.run(fetch_articles_without_content())

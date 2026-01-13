@@ -3,6 +3,7 @@ claude.md
 CLAUDE.md
 .workflow/
 .claude-trace/
+.claude/
 
 #web_ui github workflow need this
 #static - REMOVED: Now building in Dockerfile, don't commit built assets

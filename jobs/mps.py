@@ -4,7 +4,7 @@ from .article import UpdateArticle,Update_Over
 import core.db as db
 from core.wx import WxGather
 from core.log import logger
-from core.task import TaskScheduler
+from core.task import GlobalScheduler
 from core.models.feed import Feed
 from core.config import cfg,DEBUG
 from core.print import print_info,print_success,print_error
@@ -36,8 +36,29 @@ async def fetch_all_article():
 def test(info:str):
     print("任务测试成功",info)
 
+"""
+Article List Collection Jobs - Dual-Queue Architecture
+
+This module handles scheduled article list collection from WeChat Official Accounts (MPs).
+Uses GlobalQueueManager.list_queue for article list fetching tasks.
+
+Architecture:
+    - list_queue: Article list collection (paused when QR code expires)
+    - content_queue: Article content extraction (independent, see fetch_no_article.py)
+
+Queue Pause Behavior:
+    - When WeChat QR code expires: list_queue pauses automatically via driver/success.setStatus(False)
+    - Article list tasks remain queued but won't execute until QR login success
+    - Content extraction queue continues independently
+
+Usage:
+    from jobs.mps import start_job, add_job
+    start_job()  # Start scheduled collection via APScheduler
+    await add_job(feeds, task)  # Manual collection trigger
+"""
+
 from core.models.message_task import MessageTask
-# from core.queue import TaskQueue
+from core.queue import GlobalQueueManager
 from .webhook import web_hook
 
 async def do_job(mp=None,task:MessageTask=None):
@@ -67,17 +88,17 @@ async def do_job(mp=None,task:MessageTask=None):
             web_hook(tms)
             print_success(f"任务({task.id})[{mp.mp_name}]执行成功,{count}成功条数")
 
-from core.queue import TaskQueue
+from core.queue import GlobalQueueManager
 async def add_job(feeds:list[Feed]=None,task:MessageTask=None,isTest=False):
     if isTest:
-        TaskQueue.clear_queue()
+        GlobalQueueManager.list_queue.clear_queue()
 
     # Read and validate messagetask_mp_delay config (default 2s, range 1-10s)
     delay_base = cfg.get('messagetask_mp_delay', 2)
     delay_base = max(1, min(10, float(delay_base)))  # Clamp to 1-10s range
 
     for feed in feeds:
-        TaskQueue.add_task(do_job,feed,task)
+        GlobalQueueManager.list_queue.add_task(do_job,feed,task)
         if isTest:
             print(f"测试任务，{feed.mp_name}，加入队列成功")
             reload_job()
@@ -87,7 +108,7 @@ async def add_job(feeds:list[Feed]=None,task:MessageTask=None,isTest=False):
         print(f'等待 {actual_delay:.2f}秒后处理下一个公众号...')
         await asyncio.sleep(actual_delay)
         print(f"{feed.mp_name}，加入队列成功")
-    print_success(TaskQueue.get_queue_info())
+    print_success(GlobalQueueManager.list_queue.get_queue_info())
     pass
 import json
 def get_feeds(task:MessageTask=None):
@@ -97,11 +118,11 @@ def get_feeds(task:MessageTask=None):
      if len(mps)==0:
         mps=wx_db.get_all_mps()
      return mps
-scheduler=TaskScheduler()
+
 def reload_job():
     print_success("重载任务")
-    scheduler.clear_all_jobs()
-    TaskQueue.clear_queue()
+    GlobalScheduler.clear_all_jobs()
+    GlobalQueueManager.list_queue.clear_queue()
     start_job()
 
 async def run(job_id:str=None,isTest=False):
@@ -130,9 +151,9 @@ def start_job(job_id:str=None):
             print_error(f"任务[{task.id}]没有设置cron表达式")
             continue
       
-        job_id=scheduler.add_cron_job(add_job,cron_expr=cron_exp,args=[get_feeds(task),task],job_id=str(task.id),tag="定时采集")
+        job_id=GlobalScheduler.add_cron_job(add_job,cron_expr=cron_exp,args=[get_feeds(task),task],job_id=str(task.id),tag="定时采集")
         print(f"已添加任务: {job_id}")
-    scheduler.start()
+    GlobalScheduler.start()
     print("启动任务")
 def start_all_task():
       #开启自动同步未同步 文章任务

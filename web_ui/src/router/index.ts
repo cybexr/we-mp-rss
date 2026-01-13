@@ -12,6 +12,7 @@ import ConfigDetail from '../views/ConfigDetail.vue'
 import MessageTaskList from '../views/MessageTaskList.vue'
 import MessageTaskForm from '../views/MessageTaskForm.vue'
 import NovelReader from '../views/NovelReader.vue'
+import QueueMonitor from '../views/QueueMonitor.vue'
 
 const routes = [
   {
@@ -142,6 +143,15 @@ const routes = [
         meta: { 
           requiresAuth: true,
           permissions: ['tag:edit'] 
+        }
+      },
+      {
+        path: 'queue',
+        name: 'QueueMonitor',
+        component: QueueMonitor,
+        meta: {
+          requiresAuth: true,
+          permissions: ['admin']
         }
       },
     ]

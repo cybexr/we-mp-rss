@@ -26,6 +26,8 @@ class TaskQueueManager:
         self._is_running = False
         self.tag = tag
         self._jobs: Dict[str, Dict[str, Any]] = {}  # Job storage with status tracking
+        self.is_paused = False
+        self.pause_lock = threading.Lock()
         
     def add_task(self, task: Callable[..., Any], *args: Any, job_id: Optional[str] = None, **kwargs: Any) -> str:
         """添加任务到队列并返回任务ID
@@ -73,6 +75,12 @@ class TaskQueueManager:
         try:
             while self._is_running:
                 time.sleep(0.1)  # 避免过于频繁的任务获取
+
+                # Check pause state before processing tasks
+                if self.is_paused:
+                    time.sleep(0.5)
+                    continue
+
                 try:
                     # 阻塞获取任务，避免CPU空转
                     job_id, task, args, kwargs = self._queue.get(timeout=timeout)
@@ -192,7 +200,7 @@ class TaskQueueManager:
                 except queue.Empty:
                     break
             print_success("队列已清空")
-            
+
     def delete_queue(self) -> None:
         """删除队列(停止并清空所有任务)"""
         with self._lock:
@@ -204,6 +212,29 @@ class TaskQueueManager:
                 except queue.Empty:
                     break
             print_success("队列已删除")
+
+    def pause(self) -> None:
+        """暂停队列任务处理"""
+        with self.pause_lock:
+            if not self.is_paused:
+                self.is_paused = True
+                print_warning(f"{self.tag}队列已暂停")
+
+    def resume(self) -> None:
+        """恢复队列任务处理"""
+        with self.pause_lock:
+            if self.is_paused:
+                self.is_paused = False
+                print_success(f"{self.tag}队列已恢复")
+
+    def is_queue_paused(self) -> bool:
+        """获取队列暂停状态
+
+        Returns:
+            bool: 队列是否处于暂停状态
+        """
+        with self.pause_lock:
+            return self.is_paused
 TaskQueue = TaskQueueManager(tag="默认队列")
 TaskQueue.run_task_background()
 if __name__ == "__main__":

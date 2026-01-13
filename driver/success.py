@@ -1,5 +1,6 @@
 from .token import set_token
-from core.print import print_warning,print_success
+from core.print import print_warning,print_success,print_info
+from core.queue import GlobalQueueManager
 #判断是否是有效登录
 
 # 初始化全局变量
@@ -15,6 +16,10 @@ async def setStatus(status:bool):
     global WX_LOGIN_ED
     async with login_lock:
         WX_LOGIN_ED=status
+        if not status:
+            # Pause list queue when login fails or QR expires
+            GlobalQueueManager.pause_list_queue()
+            print_warning("WeChat login failed - pausing article list collection queue")
 async def getStatus():
     global WX_LOGIN_ED
     async with login_lock:
@@ -48,6 +53,9 @@ async def Success(data:dict,ext_data:dict={}):
                 print_success(f"有效时间: {data['expiry']['expiry_time']} (剩余秒数: {data['expiry']['remaining_seconds']}) Token: {data['token']}")
                 set_token(data,ext_data)
                 await setStatus(True)
+                # Resume list queue after successful login
+                GlobalQueueManager.resume_list_queue()
+                print_info("WeChat login successful - resuming article list collection queue")
             else:
                 print_warning("登录失败，请检查上述错误信息")
                 await setStatus(False)
