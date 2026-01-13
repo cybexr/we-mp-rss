@@ -70,6 +70,11 @@ def UpdateArticle(art:dict,check_exist=True):
     if  DB.add_article(art,check_exist=check_exist):
         mps_count=mps_count+1
 
+        # Log successful insertion
+        article_id = art.get('id', 'unknown')
+        article_title = art.get('title', '(no title)')
+        print_info(f'[INSERT] Article inserted: {article_id} - {article_title}')
+
         # Check if feed has image caching enabled
         try:
             mp_id = art.get('mp_id')
