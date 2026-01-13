@@ -100,6 +100,7 @@
             <a-space>
               <a-button size="mini" @click="showArticles(record)">文章列表</a-button>
               <a-button size="mini" @click="editMp(record)">编辑</a-button>
+              <a-button size="mini" @click="showRefreshModal(record)">刷新</a-button>
               <a-button
                 size="mini"
                 status="danger"
@@ -151,6 +152,7 @@
                   </a-tag>
                   <a-space :size="4">
                     <a-button size="mini" @click="showArticles(item)">文章列表</a-button>
+                    <a-button size="mini" @click="showRefreshModal(item)">刷新</a-button>
                     <a-button size="mini" @click="editMp(item)">编辑</a-button>
                     <a-button
                       size="mini"
@@ -246,6 +248,7 @@
       </a-form>
     </a-modal>
 
+    <a-modal      v-model:visible="refreshModalVisible"      :title="`刷新 ${currentRefreshMpName}`"      @ok="handleRefreshOk"      @cancel="refreshModalVisible = false"    >      <a-form :model="refreshForm">        <a-form-item label="起始页" field="startPage">          <a-input-number v-model="refreshForm.startPage" :min="0" />        </a-form-item>        <a-form-item label="结束页" field="endPage">          <a-input-number v-model="refreshForm.endPage" :min="1" />        </a-form-item>      </a-form>    </a-modal>
     <a-modal
       v-model:visible="articleModalVisible"
       :title="`${currentMpName} - 文章列表`"
@@ -308,7 +311,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
-import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getCategories, batchUpdateCategory } from '@/api/subscription'
+import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getCategories, batchUpdateCategory, UpdateMps } from '@/api/subscription'
 import { getArticles, getArticleDetail } from '@/api/article'
 import { getToken } from '@/utils/auth'
 import { Avatar, ProxyImage } from '@/utils/constants'
@@ -354,6 +357,14 @@ const selectedRowKeys = ref<string[]>([])
 const batchCategoryModalVisible = ref(false)
 const batchCategory = ref('')
 
+n// 刷新相关状态
+const refreshModalVisible = ref(false)
+const currentRefreshMpId = ref('')
+const currentRefreshMpName = ref('')
+const refreshForm = reactive({
+  startPage: 0,
+  endPage: 1
+})
 // 文章列表相关状态
 const articleModalVisible = ref(false)
 const currentMpId = ref('')
@@ -689,6 +700,7 @@ const handleBatchCategoryCancel = () => {
   batchCategoryModalVisible.value = false
 }
 
+// 显示刷新弹框const showRefreshModal = (record) => {  currentRefreshMpId.value = record.id  currentRefreshMpName.value = record.mp_name  refreshForm.startPage = 0  refreshForm.endPage = 1  refreshModalVisible.value = true}// 处理刷新确认const handleRefreshOk = async () => {  try {    await UpdateMps(currentRefreshMpId.value, {      start_page: refreshForm.startPage,      end_page: refreshForm.endPage    })    Message.success("刷新任务已提交，后台正在处理")    refreshModalVisible.value = false    loadData(searchText.value, selectedCategory.value)  } catch (error) {    console.error("刷新失败:", error)    Message.error(error.message || "刷新失败")  }}
 onMounted(() => {
   window.addEventListener('resize', handleResize)
   loadData()
