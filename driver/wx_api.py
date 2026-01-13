@@ -373,17 +373,32 @@ class WeChatAPI:
     def _start_login_check(self, uuid: str):
         """
         启动登录状态检查
-        
+
         Args:
             uuid: 二维码UUID
         """
+        # 添加最大轮询次数限制，防止无限轮询（150次 * 2秒 = 5分钟）
+        max_attempts = 150
+        attempt_count = [0]  # 使用列表以便在闭包中修改
+
         def check_login():
+            attempt_count[0] += 1
+
+            # 超时检查
+            if attempt_count[0] > max_attempts:
+                logger.warning(f"登录轮询超时，已达到最大尝试次数 {max_attempts}")
+                if self.notice_callback:
+                    self.notice_callback('登录超时，请重新获取二维码')
+                self.release_lock()
+                return
+
             try:
                 # 检查登录状态
                 status = self._check_login_status(uuid)
                 if status == 'success':
                     self._islogin=True
                     self._handle_login_success()
+                    self.release_lock()  # 成功时释放锁
                 elif status == 'waiting':
                     # 继续等待
                     Timer(2.0, check_login).start()
@@ -396,20 +411,38 @@ class WeChatAPI:
                     # 二维码过期
                     if self.notice_callback:
                         self.notice_callback('二维码已过期，请重新获取')
+                    self.release_lock()  # 过期时释放锁
                     return
                 elif status == 'exists':
+                    self.release_lock()  # QR码已存在时释放锁
+                    return
+                elif status == 'not_exists':
+                    # QR码文件不存在，终止轮询
+                    logger.info("二维码文件已删除，终止登录检查")
+                    if self.notice_callback:
+                        self.notice_callback('二维码已失效')
+                    self.release_lock()  # 文件不存在时释放锁
+                    return
+                elif status == 'error':
+                    # 检测到错误，终止轮询避免无限重试
+                    logger.error("登录状态检查出错，终止轮询")
+                    if self.notice_callback:
+                        self.notice_callback('登录检查失败，请重新获取二维码')
+                    self.release_lock()  # 错误时释放锁
                     return
                 else:
-                    # 继续检查
-                    Timer(2.0, check_login).start()
-                    
+                    # 未知状态，记录日志并终止，避免无限轮询
+                    logger.warning(f"未知登录状态: {status}，终止轮询")
+                    self.release_lock()  # 未知状态时释放锁
+                    return
+
             except Exception as e:
                 logger.error(f"检查登录状态失败: {str(e)}")
                 if self.notice_callback:
                     self.notice_callback('检查登录状态失败,请重试')
-                # Timer(5.0, check_login).start()  # 出错后延长检查间隔
-            finally:
-                self.release_lock()
+                self.release_lock()  # 异常时释放锁
+                return  # 异常时终止轮询，避免无限重试
+
         # 启动检查
         Timer(2.0, check_login).start()
 
@@ -457,7 +490,7 @@ class WeChatAPI:
                 elif status == 4:
                     return 'scanned'  # 已扫描，等待确认
                 else:
-                    return 'wait'  # 继续等待
+                    return 'waiting'  # 继续等待（修复状态字符串匹配）
                     
         except Exception as e:
             logger.error(f"检查登录状态失败: {str(e)}")
