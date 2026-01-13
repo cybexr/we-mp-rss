@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "lastUpdated": 1768181156578,
+  "plugins": [
+    {
+      "filename": "ygg-we-mp-rss",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills\\ygg-we-mp-rss",
+        "filename": "ygg-we-mp-rss",
+        "name": "ygg-we-mp-rss",
+        "description": "WeChat Official Account RSS aggregation system with article management, categorization, and REST API (located at D:/HUS_DEV/dd2017/ygg-we-mp-rss). Load this SKILL when analyzing, modifying, or learning about WeChat RSS management, FastAPI backend architecture, Vue.js admin interfaces, or files under this path, especially when no relevant context exists in memory.",
+        "category": "skills",
+        "type": "skill",
+        "version": "1.0.0",
+        "size": 1443,
+        "contentHash": "1766d1fb1ea657666a892027d9289a0ab530970d473dd08e3b80ae078a4a306a"
+      }
+    }
+  ]
+}
