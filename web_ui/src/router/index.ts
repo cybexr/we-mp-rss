@@ -186,23 +186,37 @@ router.beforeEach(async (to, from, next) => {
   if (!token) {
     return next({
       path: '/login',
-      query: { redirect: to.fullPath } // 保存目标路由用于登录后跳转
+      query: { redirect: to.fullPath }
     })
   }
 
   // 已登录状态，验证token有效性
   try {
-    // 确保从正确路径导入verifyToken
     const { verifyToken } = await import('@/api/auth')
-    await verifyToken()
-    next()
+    const result = await verifyToken()
+
+    // 验证成功，允许导航
+    if (result && result.is_valid) {
+      next()
+    } else {
+      // Token无效但没有抛出错误，清除token并跳转登录
+      console.warn('Token验证返回无效状态')
+      localStorage.removeItem('token')
+      next({
+        path: '/login',
+        query: {
+          redirect: to.fullPath,
+          error: 'session_expired'
+        }
+      })
+    }
   } catch (error) {
     console.error('Token验证失败:', error)
     // token无效时清除并跳转登录
     localStorage.removeItem('token')
     next({
       path: '/login',
-      query: { 
+      query: {
         redirect: to.fullPath,
         error: 'session_expired'
       }

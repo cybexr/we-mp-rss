@@ -2,10 +2,11 @@ import axios from 'axios'
 import { getToken } from '@/utils/auth'
 import { Message } from '@arco-design/web-vue'
 import router from '@/router'
+
 // 创建axios实例
 const http = axios.create({
   baseURL: (import.meta.env.VITE_API_BASE_URL || '') + 'api/v1/',
-  timeout: 100000,
+  timeout: 30000, // 30 seconds timeout for all requests
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -22,6 +23,7 @@ http.interceptors.request.use(
     return config
   },
   error => {
+    console.error('请求拦截器错误:', error)
     return Promise.reject(error)
   }
 )
@@ -48,6 +50,13 @@ http.interceptors.response.use(
     return Promise.reject(new Error(errorMsg))
   },
   error => {
+    // 处理请求超时
+    if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
+      const timeoutMsg = '请求超时，请检查网络连接或稍后重试'
+      Message.error(timeoutMsg)
+      return Promise.reject(new Error(timeoutMsg))
+    }
+
     // HTTP 错误状态码处理
     if (error.response) {
       const status = error.response.status
