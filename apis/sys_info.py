@@ -8,7 +8,7 @@ from core.auth import get_current_user
 from .base import success_response, error_response
 from driver.token import wx_cfg
 from core.config import cfg
-from jobs.mps import TaskQueue
+from core.queue.queue import TaskQueue
 from driver.success import getLoginInfo,getStatus
 router = APIRouter(prefix="/sys", tags=["系统信息"])
 def get_docker_version():
