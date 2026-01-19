@@ -5,6 +5,7 @@
         <a-space>
           <a-button type="primary" @click="showAddModal">添加公众号</a-button>
           <a-button @click="showBatchCategoryModal" :disabled="!selectedRowKeys.length">批量分类更新</a-button>
+          <a-button @click="showBatchRefreshModal" :disabled="!selectedRowKeys.length">批量刷新</a-button>
         </a-space>
 
         <a-space :size="12">
