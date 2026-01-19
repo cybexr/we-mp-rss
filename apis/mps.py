@@ -73,6 +73,8 @@ async def get_mps(
     offset: int = Query(0, ge=0),
     kw: str = Query(""),
     category: Optional[str] = Query(None, description="Filter by category"),
+    sort_by: str = Query("created_at", description="Sort column: last_publish_time, article_count, created_at, mp_name"),
+    sort_order: str = Query("desc", description="Sort order: asc or desc"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -120,8 +122,31 @@ async def get_mps(
             total_result = await session.execute(count_stmt)
             total = total_result.scalar()
 
+            # Apply sorting based on sort_by parameter
+            sort_column_map = {
+                'last_publish_time': func.max(Article.publish_time),
+                'article_count': func.count(Article.id),
+                'created_at': Feed.created_at,
+                'mp_name': Feed.mp_name
+            }
+
+            # Default to created_at if invalid sort_by
+            sort_column = sort_column_map.get(sort_by, Feed.created_at)
+
+            # Apply sort order with null handling for last_publish_time
+            if sort_order.lower() == 'asc':
+                if sort_by == 'last_publish_time':
+                    stmt = stmt.order_by(sort_column.asc().nullsfirst())
+                else:
+                    stmt = stmt.order_by(sort_column.asc())
+            else:  # desc
+                if sort_by == 'last_publish_time':
+                    stmt = stmt.order_by(sort_column.desc().nullslast())
+                else:
+                    stmt = stmt.order_by(sort_column.desc())
+
             # Get paginated results
-            stmt = stmt.order_by(Feed.created_at.desc()).limit(limit).offset(offset)
+            stmt = stmt.limit(limit).offset(offset)
             result = await session.execute(stmt)
             rows = result.all()
 

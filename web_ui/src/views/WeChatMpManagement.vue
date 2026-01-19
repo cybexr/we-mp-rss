@@ -357,7 +357,11 @@ const selectedRowKeys = ref<string[]>([])
 const batchCategoryModalVisible = ref(false)
 const batchCategory = ref('')
 
-n// 刷新相关状态
+// 排序相关状态
+const sortBy = ref('created_at')
+const sortOrder = ref('desc')
+
+// 刷新相关状态
 const refreshModalVisible = ref(false)
 const currentRefreshMpId = ref('')
 const currentRefreshMpName = ref('')
@@ -414,6 +418,9 @@ const loadData = async (kw = '', category = '', isLoadMore = false) => {
       // Filter for specific category (but not empty string "All Categories")
       params.category = category
     }
+    // Add sorting parameters
+    params.sort_by = sortBy.value
+    params.sort_order = sortOrder.value
     // If category is empty string ('All'), don't send category parameter
     const res = await getSubscriptions(params)
 

@@ -47,7 +47,7 @@ export interface MpSearchResult {
   data: MpItem[]
 }
 
-export const getSubscriptions = (params?: { page?: number; pageSize?: number; kw?: string; category?: string }) => {
+export const getSubscriptions = (params?: { page?: number; pageSize?: number; kw?: string; category?: string; sort_by?: string; sort_order?: string }) => {
   const apiParams: any = {
     offset: (params?.page || 0) * (params?.pageSize || 10),
     limit: params?.pageSize || 10,
@@ -56,6 +56,13 @@ export const getSubscriptions = (params?: { page?: number; pageSize?: number; kw
   // Only include category parameter if it's explicitly set (including empty string for blank categories)
   if (params?.category !== undefined) {
     apiParams.category = params.category
+  }
+  // Add sorting parameters if provided
+  if (params?.sort_by) {
+    apiParams.sort_by = params.sort_by
+  }
+  if (params?.sort_order) {
+    apiParams.sort_order = params.sort_order
   }
   return http.get<SubscriptionListResult>('/wx/mps', { params: apiParams })
 }
