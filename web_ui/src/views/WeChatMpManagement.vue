@@ -253,9 +253,14 @@
       v-model:visible="batchRefreshModalVisible"
       :title="`批量刷新 (${selectedRowKeys.length} 个公众号)`"
       :ok-loading="batchRefreshing"
+      ok-text="确认刷新"
+      cancel-text="取消"
       @ok="handleBatchRefreshOk"
       @cancel="handleBatchRefreshCancel"
     >
+      <a-alert type="info" style="margin-bottom: 16px">
+        确定要刷新选中的 {{ selectedRowKeys.length }} 个公众号吗？
+      </a-alert>
       <a-form :model="batchRefreshForm">
         <a-form-item label="起始页" field="startPage">
           <a-input-number v-model="batchRefreshForm.startPage" :min="0" />
@@ -743,37 +748,32 @@ const showBatchRefreshModal = () => {
 
 // 处理批量刷新确认
 const handleBatchRefreshOk = async () => {
-  Modal.confirm({
-    title: '确认批量刷新',
-    content: `确定要刷新选中的 ${selectedRowKeys.value.length} 个公众号吗？页码范围：${batchRefreshForm.startPage} - ${batchRefreshForm.endPage}`,
-    okText: '确认',
-    cancelText: '取消',
-    onOk: async () => {
-      try {
-        batchRefreshing.value = true
-        const res = await batchRefreshMps({
-          mp_ids: selectedRowKeys.value,
-          start_page: batchRefreshForm.startPage,
-          end_page: batchRefreshForm.endPage
-        })
+  if (!selectedRowKeys.value.length) return
 
-        let message = `已提交 ${res.submitted_count} 个刷新任务`
-        if (res.rate_limited_count > 0) {
-          message += `，${res.rate_limited_count} 个公众号因频率限制跳过`
-        }
-        Message.success(message)
+  try {
+    batchRefreshing.value = true
+    const res = await batchRefreshMps({
+      mp_ids: selectedRowKeys.value,
+      start_page: batchRefreshForm.startPage,
+      end_page: batchRefreshForm.endPage
+    })
 
-        selectedRowKeys.value = []
-        batchRefreshModalVisible.value = false
-        loadData(searchText.value, selectedCategory.value)
-      } catch (error) {
-        console.error('批量刷新失败:', error)
-        Message.error(error.message || '批量刷新失败')
-      } finally {
-        batchRefreshing.value = false
-      }
+    let message = `已提交 ${res.submitted_count} 个刷新任务`
+    if (res.rate_limited_count > 0) {
+      message += `，${res.rate_limited_count} 个公众号因频率限制跳过`
     }
-  })
+    Message.success(message)
+
+    selectedRowKeys.value = []
+    batchRefreshModalVisible.value = false
+    loadData(searchText.value, selectedCategory.value)
+  } catch (error) {
+    console.error('批量刷新失败:', error)
+    Message.error(error.message || '批量刷新失败')
+    // Keep modal open on error so user can retry
+  } finally {
+    batchRefreshing.value = false
+  }
 }
 
 const handleBatchRefreshCancel = () => {

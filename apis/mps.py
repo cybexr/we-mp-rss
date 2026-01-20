@@ -648,19 +648,23 @@ async def batch_refresh_mps(
                         rate_limited_mp_ids.append(mp.id)
                         continue
 
-                # Submit task to queue
-                job_id = TaskQueue.add_task(
+                # Generate unique job_id for this refresh task
+                job_id = f'refresh_{mp.id}_{int(now.timestamp())}'
+
+                # Submit task to queue with correct arguments
+                TaskQueue.add_task(
                     WxGather().Model().get_Articles,
-                    kwargs={
-                        "mp_id": mp.id,
-                        "start_page": start_page,
-                        "end_page": end_page
-                    },
-                    tag="list_queue"
+                    faker_id=mp.faker_id,
+                    Mps_id=mp.id,
+                    Mps_title=mp.mp_name,
+                    CallBack=UpdateArticle,
+                    start_page=start_page,
+                    MaxPage=end_page,
+                    job_id=job_id
                 )
 
                 # Update mp update_time
-                mp.update_time = now
+                mp.update_time = int(now.timestamp())
                 submitted_job_ids.append(job_id)
                 logger.info(f"已提交批量刷新任务 {job_id} for 公众号 {mp.mp_name}")
 
