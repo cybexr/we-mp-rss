@@ -131,3 +131,25 @@ export interface BatchUpdateCategoryParams {
 export const batchUpdateCategory = (params: BatchUpdateCategoryParams) => {
   return http.put<{updated_count: number}>('/wx/mps/batch-category', params)
 }
+
+export interface BatchRefreshParams {
+  mp_ids: string[]
+  start_page: number
+  end_page: number
+}
+
+export interface BatchRefreshResponse {
+  submitted_count: number
+  rate_limited_count: number
+  job_ids: string[]
+  rate_limited_mps: string[]
+}
+
+/**
+ * Batch refresh multiple WeChat MPs
+ * @param params - Object containing mp_ids array, start_page, and end_page
+ * @returns Response with submitted/rate-limited counts and job IDs
+ */
+export const batchRefreshMps = (params: BatchRefreshParams) => {
+  return http.post<BatchRefreshResponse>('/wx/mps/batch-refresh', params)
+}

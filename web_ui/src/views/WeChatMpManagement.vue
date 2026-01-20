@@ -249,6 +249,23 @@
       </a-form>
     </a-modal>
 
+    <a-modal
+      v-model:visible="batchRefreshModalVisible"
+      :title="`批量刷新 (${selectedRowKeys.length} 个公众号)`"
+      :ok-loading="batchRefreshing"
+      @ok="handleBatchRefreshOk"
+      @cancel="handleBatchRefreshCancel"
+    >
+      <a-form :model="batchRefreshForm">
+        <a-form-item label="起始页" field="startPage">
+          <a-input-number v-model="batchRefreshForm.startPage" :min="0" />
+        </a-form-item>
+        <a-form-item label="结束页" field="endPage">
+          <a-input-number v-model="batchRefreshForm.endPage" :min="1" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
     <a-modal      v-model:visible="refreshModalVisible"      :title="`刷新 ${currentRefreshMpName}`"      @ok="handleRefreshOk"      @cancel="refreshModalVisible = false"    >      <a-form :model="refreshForm">        <a-form-item label="起始页" field="startPage">          <a-input-number v-model="refreshForm.startPage" :min="0" />        </a-form-item>        <a-form-item label="结束页" field="endPage">          <a-input-number v-model="refreshForm.endPage" :min="1" />        </a-form-item>      </a-form>    </a-modal>
     <a-modal
       v-model:visible="articleModalVisible"
@@ -312,7 +329,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
-import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getCategories, batchUpdateCategory, UpdateMps } from '@/api/subscription'
+import { getSubscriptions, addSubscription, updateSubscription, deleteSubscription, getCategories, batchUpdateCategory, batchRefreshMps, UpdateMps } from '@/api/subscription'
 import { getArticles, getArticleDetail } from '@/api/article'
 import { getToken } from '@/utils/auth'
 import { Avatar, ProxyImage } from '@/utils/constants'
@@ -370,6 +387,15 @@ const refreshForm = reactive({
   startPage: 0,
   endPage: 1
 })
+
+// 批量刷新相关状态
+const batchRefreshModalVisible = ref(false)
+const batchRefreshing = ref(false)
+const batchRefreshForm = reactive({
+  startPage: 0,
+  endPage: 1
+})
+
 // 文章列表相关状态
 const articleModalVisible = ref(false)
 const currentMpId = ref('')
@@ -706,6 +732,54 @@ const handleBatchCategoryOk = () => {
 const handleBatchCategoryCancel = () => {
   batchCategory.value = ''
   batchCategoryModalVisible.value = false
+}
+
+// 显示批量刷新弹框
+const showBatchRefreshModal = () => {
+  batchRefreshForm.startPage = 0
+  batchRefreshForm.endPage = 1
+  batchRefreshModalVisible.value = true
+}
+
+// 处理批量刷新确认
+const handleBatchRefreshOk = async () => {
+  Modal.confirm({
+    title: '确认批量刷新',
+    content: `确定要刷新选中的 ${selectedRowKeys.value.length} 个公众号吗？页码范围：${batchRefreshForm.startPage} - ${batchRefreshForm.endPage}`,
+    okText: '确认',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        batchRefreshing.value = true
+        const res = await batchRefreshMps({
+          mp_ids: selectedRowKeys.value,
+          start_page: batchRefreshForm.startPage,
+          end_page: batchRefreshForm.endPage
+        })
+
+        let message = `已提交 ${res.submitted_count} 个刷新任务`
+        if (res.rate_limited_count > 0) {
+          message += `，${res.rate_limited_count} 个公众号因频率限制跳过`
+        }
+        Message.success(message)
+
+        selectedRowKeys.value = []
+        batchRefreshModalVisible.value = false
+        loadData(searchText.value, selectedCategory.value)
+      } catch (error) {
+        console.error('批量刷新失败:', error)
+        Message.error(error.message || '批量刷新失败')
+      } finally {
+        batchRefreshing.value = false
+      }
+    }
+  })
+}
+
+const handleBatchRefreshCancel = () => {
+  batchRefreshForm.startPage = 0
+  batchRefreshForm.endPage = 1
+  batchRefreshModalVisible.value = false
 }
 
 // 显示刷新弹框const showRefreshModal = (record) => {  currentRefreshMpId.value = record.id  currentRefreshMpName.value = record.mp_name  refreshForm.startPage = 0  refreshForm.endPage = 1  refreshModalVisible.value = true}// 处理刷新确认const handleRefreshOk = async () => {  try {    await UpdateMps(currentRefreshMpId.value, {      start_page: refreshForm.startPage,      end_page: refreshForm.endPage    })    Message.success("刷新任务已提交，后台正在处理")    refreshModalVisible.value = false    loadData(searchText.value, selectedCategory.value)  } catch (error) {    console.error("刷新失败:", error)    Message.error(error.message || "刷新失败")  }}

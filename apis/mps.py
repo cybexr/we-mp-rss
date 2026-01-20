@@ -585,6 +585,110 @@ async def batch_update_category(
             )
 
 
+@router.post("/batch-refresh", summary="批量刷新公众号文章")
+async def batch_refresh_mps(
+    mp_ids: List[str] = Body(..., min_items=1, max_items=50, description="公众号ID列表"),
+    start_page: int = Body(0, ge=0, description="起始页码"),
+    end_page: int = Body(1, ge=1, description="结束页码"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    批量刷新多个公众号的文章。
+
+    对选中的多个公众号提交文章更新任务到后台队列。
+    应用频率限制，超出限制的公众号会被跳过。
+
+    Args:
+        mp_ids: 公众号ID列表（1-50个）
+        start_page: 起始页码
+        end_page: 结束页码
+
+    Returns:
+        包含以下字段的响应:
+        - submitted_count: 已提交任务数
+        - rate_limited_count: 因频率限制跳过的数量
+        - job_ids: 已提交的任务ID列表
+        - rate_limited_mps: 被跳过的公众号ID列表
+    """
+    async with DB.async_session_factory() as session:
+        try:
+            from core.models.feed import Feed
+            from core.wx import WxGather
+            from core.queue import TaskQueue
+            from datetime import datetime, timedelta
+
+            # Get sync interval from config (default 30 seconds)
+            sync_interval = cfg.get("sync_interval", 30)
+
+            # Query all requested MPs
+            result = await session.execute(
+                select(Feed).where(Feed.id.in_(mp_ids))
+            )
+            mps = result.scalars().all()
+
+            if not mps:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_response(
+                        code=40401,
+                        message="未找到任何公众号"
+                    )
+                )
+
+            submitted_job_ids = []
+            rate_limited_mp_ids = []
+            now = datetime.now()
+
+            for mp in mps:
+                # Check rate limiting
+                if mp.update_time:
+                    time_since_update = (now - mp.update_time).total_seconds()
+                    if time_since_update < sync_interval:
+                        logger.info(f"公众号 {mp.mp_name} 更新过于频繁，跳过（距上次更新 {time_since_update:.0f}秒）")
+                        rate_limited_mp_ids.append(mp.id)
+                        continue
+
+                # Submit task to queue
+                job_id = TaskQueue.add_task(
+                    WxGather().Model().get_Articles,
+                    kwargs={
+                        "mp_id": mp.id,
+                        "start_page": start_page,
+                        "end_page": end_page
+                    },
+                    tag="list_queue"
+                )
+
+                # Update mp update_time
+                mp.update_time = now
+                submitted_job_ids.append(job_id)
+                logger.info(f"已提交批量刷新任务 {job_id} for 公众号 {mp.mp_name}")
+
+            await session.commit()
+
+            logger.info(f"批量刷新完成: 提交 {len(submitted_job_ids)} 个任务, 跳过 {len(rate_limited_mp_ids)} 个")
+
+            return success_response({
+                "submitted_count": len(submitted_job_ids),
+                "rate_limited_count": len(rate_limited_mp_ids),
+                "job_ids": submitted_job_ids,
+                "rate_limited_mps": rate_limited_mp_ids
+            })
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"批量刷新错误: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_response(
+                    code=50001,
+                    message="批量刷新失败"
+                )
+            )
+
+
 @router.put("/{mp_id}", summary="更新公众号信息")
 async def update_mp(
     mp_id: str,
