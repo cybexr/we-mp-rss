@@ -271,7 +271,21 @@
       </a-form>
     </a-modal>
 
-    <a-modal      v-model:visible="refreshModalVisible"      :title="`刷新 ${currentRefreshMpName}`"      @ok="handleRefreshOk"      @cancel="refreshModalVisible = false"    >      <a-form :model="refreshForm">        <a-form-item label="起始页" field="startPage">          <a-input-number v-model="refreshForm.startPage" :min="0" />        </a-form-item>        <a-form-item label="结束页" field="endPage">          <a-input-number v-model="refreshForm.endPage" :min="1" />        </a-form-item>      </a-form>    </a-modal>
+    <a-modal
+      v-model:visible="refreshModalVisible"
+      :title="`刷新 ${currentRefreshMpName}`"
+      @ok="handleRefreshOk"
+      @cancel="refreshModalVisible = false"
+    >
+      <a-form :model="refreshForm">
+        <a-form-item label="起始页" field="startPage">
+          <a-input-number v-model="refreshForm.startPage" :min="0" />
+        </a-form-item>
+        <a-form-item label="结束页" field="endPage">
+          <a-input-number v-model="refreshForm.endPage" :min="1" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
     <a-modal
       v-model:visible="articleModalVisible"
       :title="`${currentMpName} - 文章列表`"
@@ -782,7 +796,30 @@ const handleBatchRefreshCancel = () => {
   batchRefreshModalVisible.value = false
 }
 
-// 显示刷新弹框const showRefreshModal = (record) => {  currentRefreshMpId.value = record.id  currentRefreshMpName.value = record.mp_name  refreshForm.startPage = 0  refreshForm.endPage = 1  refreshModalVisible.value = true}// 处理刷新确认const handleRefreshOk = async () => {  try {    await UpdateMps(currentRefreshMpId.value, {      start_page: refreshForm.startPage,      end_page: refreshForm.endPage    })    Message.success("刷新任务已提交，后台正在处理")    refreshModalVisible.value = false    loadData(searchText.value, selectedCategory.value)  } catch (error) {    console.error("刷新失败:", error)    Message.error(error.message || "刷新失败")  }}
+// 显示刷新弹框
+const showRefreshModal = (record) => {
+  currentRefreshMpId.value = record.id
+  currentRefreshMpName.value = record.mp_name
+  refreshForm.startPage = 0
+  refreshForm.endPage = 1
+  refreshModalVisible.value = true
+}
+
+// 处理刷新确认
+const handleRefreshOk = async () => {
+  try {
+    await UpdateMps(currentRefreshMpId.value, {
+      start_page: refreshForm.startPage,
+      end_page: refreshForm.endPage
+    })
+    Message.success("刷新任务已提交，后台正在处理")
+    refreshModalVisible.value = false
+    loadData(searchText.value, selectedCategory.value)
+  } catch (error) {
+    console.error("刷新失败:", error)
+    Message.error(error.message || "刷新失败")
+  }
+}
 onMounted(() => {
   window.addEventListener('resize', handleResize)
   loadData()
