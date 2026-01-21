@@ -642,7 +642,10 @@ async def batch_refresh_mps(
             for mp in mps:
                 # Check rate limiting
                 if mp.update_time:
-                    time_since_update = (now - mp.update_time).total_seconds()
+                    # Convert Unix timestamp to datetime for proper subtraction
+                    from datetime import datetime as dt
+                    update_time_dt = dt.fromtimestamp(mp.update_time) if isinstance(mp.update_time, (int, float)) else mp.update_time
+                    time_since_update = (now - update_time_dt).total_seconds()
                     if time_since_update < sync_interval:
                         logger.info(f"公众号 {mp.mp_name} 更新过于频繁，跳过（距上次更新 {time_since_update:.0f}秒）")
                         rate_limited_mp_ids.append(mp.id)
