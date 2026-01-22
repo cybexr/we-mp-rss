@@ -20,6 +20,7 @@ from apis.export import router as export_router
 from apis.tools import router as tools_router
 from apis.github_update import router as github_router
 from apis.queue import router as queue_router
+from apis.scheduler import router as scheduler_router
 from views import router as views_router
 import apis
 import os
@@ -75,6 +76,7 @@ api_router.include_router(export_router)
 api_router.include_router(tools_router)
 api_router.include_router(github_router)
 api_router.include_router(queue_router)
+api_router.include_router(scheduler_router)
 
 resource_router = APIRouter(prefix="/static")
 resource_router.include_router(res_router)

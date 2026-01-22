@@ -29,6 +29,12 @@
         </template>
         标签管理
       </a-menu-item>
+      <a-menu-item key="/backend-tasks">
+        <template #icon>
+          <icon-thunderbolt />
+        </template>
+        后台任务管理
+      </a-menu-item>
       <a-menu-item key="/message-tasks">
         <template #icon>
           <icon-notification />

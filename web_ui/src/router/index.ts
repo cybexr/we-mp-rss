@@ -13,6 +13,7 @@ import MessageTaskList from '../views/MessageTaskList.vue'
 import MessageTaskForm from '../views/MessageTaskForm.vue'
 import NovelReader from '../views/NovelReader.vue'
 import QueueMonitor from '../views/QueueMonitor.vue'
+import BackendTasks from '../views/BackendTasks.vue'
 
 const routes = [
   {
@@ -140,9 +141,18 @@ const routes = [
         name: 'TagEdit',
         component: () => import('@/views/TagForm.vue'),
         props: true,
-        meta: { 
+        meta: {
           requiresAuth: true,
-          permissions: ['tag:edit'] 
+          permissions: ['tag:edit']
+        }
+      },
+      {
+        path: 'backend-tasks',
+        name: 'BackendTasks',
+        component: BackendTasks,
+        meta: {
+          requiresAuth: true,
+          permissions: ['admin']
         }
       },
       {
