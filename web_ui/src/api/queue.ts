@@ -6,8 +6,8 @@ import type { QueueStatus, JobStatus, QueueStatusResponse, JobListResponse } fro
  * @returns Promise resolving to array of queue statuses
  */
 export const fetchQueueStatus = async (): Promise<QueueStatus[]> => {
-  const response = await http.get<QueueStatusResponse>('/queues/status')
-  return response.data.queues
+  const response = await http.get<QueueStatus[]>('/queues/status')
+  return response || []
 }
 
 /**
@@ -17,8 +17,8 @@ export const fetchQueueStatus = async (): Promise<QueueStatus[]> => {
  */
 export const fetchJobs = async (queueName?: string): Promise<JobStatus[]> => {
   const params = queueName ? { queue_name: queueName } : {}
-  const response = await http.get<JobListResponse>('/queues/jobs', { params })
-  return response.data.jobs
+  const response = await http.get<JobStatus[]>('/queues/jobs', { params })
+  return response || []
 }
 
 /**

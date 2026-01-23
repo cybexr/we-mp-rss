@@ -7,7 +7,7 @@ import type { SchedulerJob, SchedulerStatus } from '../types/scheduler'
  */
 export const fetchSchedulerJobs = async (): Promise<SchedulerJob[]> => {
   const response = await http.get<SchedulerJob[]>('/scheduler/jobs')
-  return response.data || []
+  return response || []
 }
 
 /**
@@ -16,5 +16,5 @@ export const fetchSchedulerJobs = async (): Promise<SchedulerJob[]> => {
  */
 export const fetchSchedulerStatus = async (): Promise<SchedulerStatus> => {
   const response = await http.get<SchedulerStatus>('/scheduler/status')
-  return response.data
+  return response
 }
