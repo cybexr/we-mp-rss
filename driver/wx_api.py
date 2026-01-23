@@ -70,19 +70,24 @@ class WeChatAPI:
             'Referer': 'https://mp.weixin.qq.com/'
         })
      
-    def get_qr_code(self, callback: Optional[Callable] = None, notice: Optional[Callable] = None) -> Dict[str, Any]:
+    def get_qr_code(self, callback: Optional[Callable] = None, notice: Optional[Callable] = None, force_refresh: bool = False) -> Dict[str, Any]:
         """
         获取登录二维码
-        
+
         Args:
             callback: 登录成功后的回调函数
             notice: 通知回调函数
-            
+            force_refresh: 是否强制刷新二维码（跳过锁检查）
+
         Returns:
             包含二维码信息的字典
         """
         self.__init__()
-        if self.check_lock():
+        # 强制刷新时，先释放锁和清理旧二维码
+        if force_refresh:
+            self.release_lock()
+            self._clean_qr_code()
+        elif self.check_lock():
             print_warning("微信公众平台登录脚本正在运行，请勿重复运行")
             return {
                 'code': None,
@@ -153,6 +158,7 @@ class WeChatAPI:
             uuid_match = re.search(uuid_pattern, html_content)
             
             if qr_match and uuid_match:
+                logger.info(f"从首页html 获取url&uuid成功 {str(qr_match.group(1))} ")
                 return {
                     'qr_url': qr_match.group(1),
                     'uuid': uuid_match.group(1)
@@ -914,9 +920,10 @@ class WeChatAPI:
             "code":f"/{self.wx_login_url}?t={(time.time())}",
             "is_exists":self.GetHasCode(),
         }      
-    def GetCode(self,CallBack=None,Notice=None):
+    def GetCode(self,CallBack=None,Notice=None,force_refresh=False):
         from core.print import print_warning
-        if self.check_lock():
+        # 强制刷新时跳过锁检查
+        if not force_refresh and self.check_lock():
             print_warning("微信公众平台登录脚本正在运行，请勿重复运行")
             return {
                 "code":f"/{self.wx_login_url}?t={(time.time())}",
@@ -924,7 +931,7 @@ class WeChatAPI:
             }
         from core.print import print_warning
         from core.thread import ThreadManager
-        self.thread = ThreadManager(target=self.get_qr_code,args=(CallBack,Notice))  # 传入函数名
+        self.thread = ThreadManager(target=self.get_qr_code,args=(CallBack,Notice,force_refresh))  # 传入函数名
         self.thread.start()  # 启动线程
         from core.ver import VERSION
         print(f"微信公众平台登录 v{VERSION}")
@@ -955,7 +962,42 @@ class WeChatAPI:
         except:
             return False
     def HasLogin(self):
-        return self._islogin and not self.GetHasCode()
+        """
+        检查登录状态，基于token过期时间判断
+
+        Returns:
+            bool: True表示已登录且token有效，False表示未登录或token已过期
+        """
+        from driver.token import get as get_token
+        import json
+
+        # 尝试获取存储的expiry信息
+        try:
+            expiry_str = get_token("expiry", "{}")
+            if expiry_str and expiry_str != "{}":
+                # expiry可能是字符串形式的字典
+                if isinstance(expiry_str, str):
+                    expiry_info = json.loads(expiry_str.replace("'", '"'))
+                else:
+                    expiry_info = expiry_str
+
+                if expiry_info and isinstance(expiry_info, dict):
+                    remaining_seconds = expiry_info.get('remaining_seconds', 0)
+                    expiry_timestamp = expiry_info.get('expiry_timestamp', 0)
+
+                    # 使用expiry_timestamp重新计算剩余时间（更准确）
+                    if expiry_timestamp:
+                        import time
+                        remaining_seconds = expiry_timestamp - time.time()
+
+                    # token有效（剩余时间大于0）
+                    if remaining_seconds > 0:
+                        return True
+        except (json.JSONDecodeError, TypeError, KeyError) as e:
+            logger.warning(f"解析expiry信息失败: {e}")
+
+        # token无效或已过期
+        return False
     def Close(self):
         pass
 # 创建全局实例

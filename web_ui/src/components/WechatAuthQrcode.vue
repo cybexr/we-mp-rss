@@ -51,8 +51,8 @@ const startAuth = async () => {
     loading.value = true
     errorMessage.value = ''
     
-    // 获取二维码
-    const res = await QRCode()
+    // 获取二维码（强制刷新）
+    const res = await QRCode(true)
     qrcodeUrl.value = res?.code
     loading.value = false
 

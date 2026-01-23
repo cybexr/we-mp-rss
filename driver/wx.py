@@ -365,15 +365,20 @@ class Wx:
         except Exception as e:
             print_error(f"切换账号时发生错误: {str(e)}")
             return False 
-    def GetCode(self,CallBack=None,Notice=None):
+    def GetCode(self,CallBack=None,Notice=None,force_refresh=False):
         self.Notice=Notice
-        if  self.check_lock():
+        # 强制刷新时跳过锁检查并清理旧二维码
+        if force_refresh:
+            self.release_lock()
+            self.Clean()
+        elif self.check_lock():
             print_warning("微信公众平台登录脚本正在运行，请勿重复运行")
             return {
                 "code":f"{self.wx_login_url}?t={(time.time())}",
                 "msg":"微信公众平台登录脚本正在运行，请勿重复运行！"}
 
-        self.Clean()
+        if not force_refresh:
+            self.Clean()
         print("异步任务执行中")
         # 创建后台异步任务执行登录
         asyncio.create_task(self.wxLogin(CallBack, True))

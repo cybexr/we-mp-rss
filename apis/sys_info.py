@@ -107,6 +107,7 @@ async def get_system_info(
                 'expiry_time':wx_cfg.get('expiry.expiry_time','') if await getStatus() else "",
                 "info":await getLoginInfo(),
                 "login":await getStatus(),
+                "status": "logged_in" if await getStatus() else ("expired" if wx_cfg.get('token','') else "not_logged_in"),
             },
             "article":get_article_info(),
             'queue':TaskQueue.get_queue_info(),

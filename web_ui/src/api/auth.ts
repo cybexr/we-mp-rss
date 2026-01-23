@@ -34,15 +34,16 @@ export const verifyToken = () => {
 let qrCodeIntervalId:number = 0;
 let qrCodeCounter = 0;
 
-export const QRCode = () => {
+export const QRCode = (force: boolean = false) => {
   return new Promise((resolve, reject) => {
     if (qrCodeIntervalId) {
       clearInterval(qrCodeIntervalId);
       qrCodeIntervalId = 0;
     }
     qrCodeCounter = 0;
-    
-    http.get('/wx/auth/qr/code').then(res => {
+
+    const url = force ? '/wx/auth/qr/code?force=true' : '/wx/auth/qr/code';
+    http.get(url).then(res => {
       const maxAttempts = 500;
       qrCodeIntervalId = setInterval(() => {
         qrCodeCounter++;

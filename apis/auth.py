@@ -23,7 +23,7 @@ def ApiSuccess(data):
     else:
             print("\n登录失败，请检查上述错误信息")
 @router.get("/qr/code", summary="获取登录二维码")
-async def get_qrcode(current_user=Depends(get_current_user)):
+async def get_qrcode(force: bool = False, current_user=Depends(get_current_user)):
     # 验证用户权限 - 只有管理员可以访问敏感的登录二维码功能
     # Check both role field and username as fallback for databases with unset role values
     if current_user.get('role') != 'admin' and current_user.get('username') != 'admin':
@@ -38,7 +38,7 @@ async def get_qrcode(current_user=Depends(get_current_user)):
             )
         )
 
-    code_url=WX_API.GetCode(Success)
+    code_url=WX_API.GetCode(Success, force_refresh=force)
     return success_response(code_url)
 @router.get("/qr/image", summary="获取登录二维码图片")
 async def qr_image(current_user=Depends(get_current_user)):

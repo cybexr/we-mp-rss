@@ -6,8 +6,8 @@
         <div class="logo">
           <img :src="logo" alt="avatar" :width="60" style="margin-right:1rem;">
           <router-link to="/">{{ appTitle }}</router-link>
-          <a-tooltip v-if="hasLogined" :content="!haswxLogined ? '未授权，请扫码登录' : '点我扫码授权'" position="bottom">
-            <icon-scan @click="showAuthQrcode()" :style="{ marginLeft: '10px', cursor: 'pointer', color: !haswxLogined ? '#f00' : '#000' }"/>
+          <a-tooltip v-if="hasLogined" :content="wxStatusTooltip" position="bottom">
+            <icon-scan @click="showAuthQrcode()" :style="{ marginLeft: '10px', cursor: 'pointer', color: wxStatus !== 'logged_in' ? '#f00' : '#000' }"/>
           </a-tooltip>
         </div>
         <a-space>
@@ -173,7 +173,7 @@
             </a-doption>
             <a-doption @click="showAuthQrcode">
               <template #icon><icon-scan /></template>
-              扫码授权
+              扫码授权{{ wxStatusText }}
             </a-doption>
             <a-doption @click="handleLogout">
               <template #icon><icon-user /></template>
@@ -250,10 +250,34 @@ const userInfo = ref({
   avatar: ''
 })
 const haswxLogined = ref(true)
+const wxExpiryTime = ref('')
+const wxStatus = ref<'not_logged_in' | 'expired' | 'logged_in'>('not_logged_in')
 const hasLogined = ref(false)
 const isAuthenticated = computed(() => {
   hasLogined.value = !!localStorage.getItem('token')
   return hasLogined.value
+})
+
+const wxStatusTooltip = computed(() => {
+  if (wxStatus.value === 'not_logged_in') {
+    return '未登录'
+  } else if (wxStatus.value === 'expired') {
+    return `已过期(${wxExpiryTime.value}过期)`
+  } else if (wxStatus.value === 'logged_in') {
+    return `已登录(到期时间 ${wxExpiryTime.value})`
+  }
+  return '未登录'
+})
+
+const wxStatusText = computed(() => {
+  if (wxStatus.value === 'not_logged_in') {
+    return ' - 未登录'
+  } else if (wxStatus.value === 'expired') {
+    return ' - 已过期'
+  } else if (wxStatus.value === 'logged_in') {
+    return ' - 已登录'
+  }
+  return ''
 })
 
 const fetchUserInfo = async () => {
@@ -268,7 +292,9 @@ const fetchUserInfo = async () => {
 const fetchSysInfo = async () => {
   try {
     const res = await getSysInfo()
-    haswxLogined.value = res?.wx?.login||false
+    haswxLogined.value = res?.wx?.login || false
+    wxExpiryTime.value = res?.wx?.expiry_time || ''
+    wxStatus.value = res?.wx?.status || 'not_logged_in'
   } catch (error) {
     console.error('获取系统信息失败', error)
   }
