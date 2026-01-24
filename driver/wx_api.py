@@ -82,6 +82,16 @@ class WeChatAPI:
         Returns:
             包含二维码信息的字典
         """
+        # 非强制刷新时，先检查是否已有有效登录凭证
+        if not force_refresh and self.HasLogin():
+            logger.info("已有有效登录凭证，跳过二维码获取")
+            return {
+                'code': None,
+                'is_exists': False,
+                'msg': '已登录，无需扫码',
+                'is_logged_in': True
+            }
+
         self.__init__()
         # 强制刷新时，先释放锁和清理旧二维码
         if force_refresh:

@@ -8,6 +8,10 @@ import time
 
 def send_wx_code(title:str="",url:str=""):
     if cfg.get("server.send_code",False):
+        # 先检查是否已有有效登录凭证，有效则跳过扫码
+        if WX_API.HasLogin():
+            print_warning("已有有效登录凭证，跳过扫码流程")
+            return
         WX_API.GetCode(Notice=CallBackNotice,CallBack=Success)
     pass
 def CallBackNotice(data=None,ext_data=None):
