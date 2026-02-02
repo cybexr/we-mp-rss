@@ -6,9 +6,10 @@
         <div class="logo">
           <img :src="logo" alt="avatar" :width="60" style="margin-right:1rem;">
           <router-link to="/">{{ appTitle }}</router-link>
-          <a-tooltip v-if="hasLogined" :content="wxStatusTooltip" position="bottom">
-            <icon-scan @click="showAuthQrcode()" :style="{ marginLeft: '10px', cursor: 'pointer', color: wxStatus !== 'logged_in' ? '#f00' : '#000' }"/>
-          </a-tooltip>
+          <template v-if="hasLogined">
+            <icon-scan @click="showAuthQrcode()" :style="iconStyle" class="auth-icon"/>
+            <span class="auth-status-text">{{ wxStatusText }}</span>
+          </template>
         </div>
         <a-space>
             <a-select :defaultValue="currentLanguage" v-model:value="currentLanguage" @change="handleLanguageChange" >
@@ -181,7 +182,7 @@
             </a-doption>
           </template>
         </a-dropdown>
-        <WechatAuthQrcode ref="qrcodeRef" />
+        <WechatAuthQrcode ref="qrcodeRef" @success="fetchSysInfo" />
         <a-modal v-model:visible="sponsorVisible" title="感谢支持" :footer="false" :style="{ zIndex: 1000 }" unmount-on-close>
           <div style="text-align: center;">
             <p>如果您觉得这个项目对您有帮助,请给Rachel来一杯Coffee吧~ </p>
@@ -271,13 +272,23 @@ const wxStatusTooltip = computed(() => {
 
 const wxStatusText = computed(() => {
   if (wxStatus.value === 'not_logged_in') {
-    return ' - 未登录'
+    return '未登录'
   } else if (wxStatus.value === 'expired') {
-    return ' - 已过期'
+    return '已过期'
   } else if (wxStatus.value === 'logged_in') {
-    return ' - 已登录'
+    return '已登录'
   }
   return ''
+})
+
+const iconStyle = computed(() => {
+  let color = '#000'
+  if (wxStatus.value === 'expired') {
+    color = '#f00'
+  } else if (wxStatus.value === 'not_logged_in') {
+    color = '#999'
+  }
+  return { marginLeft: '10px', cursor: 'pointer', color }
 })
 
 const fetchUserInfo = async () => {
@@ -374,6 +385,16 @@ watch(
   align-items: center;
   font-size: 18px;
   font-weight: 500;
+}
+
+.auth-icon {
+  font-size: 18px;
+}
+
+.auth-status-text {
+  font-size: 12px;
+  margin-left: 4px;
+  color: var(--color-text-2);
 }
 
 .logo svg {
