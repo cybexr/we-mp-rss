@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from core.task import GlobalScheduler
 from core.print import print_error, print_info
+from apis.base import success_response, error_response
 
 
 # Pydantic Response Schemas
@@ -58,13 +59,13 @@ class SchedulerStatusResponse(BaseModel):
 router = APIRouter(prefix="/scheduler", tags=["调度器管理"])
 
 
-@router.get("/jobs", response_model=List[SchedulerJobInfo], summary="获取所有调度任务")
+@router.get("/jobs", summary="获取所有调度任务")
 async def get_scheduler_jobs():
     """
     获取调度器中所有任务的详细信息
 
     Returns:
-        List[SchedulerJobInfo]: 包含所有调度任务的列表
+        Dict with code, message, and data containing List[SchedulerJobInfo]
 
     Raises:
         HTTPException: 500 if job retrieval fails
@@ -96,20 +97,20 @@ async def get_scheduler_jobs():
                 continue
 
         print_info(f"Retrieved {len(jobs)} scheduler jobs")
-        return jobs
+        return success_response(data=jobs, message=f"Retrieved {len(jobs)} jobs")
 
     except Exception as e:
         print_error(f"Failed to get scheduler jobs: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve scheduler jobs: {str(e)}")
 
 
-@router.get("/status", response_model=SchedulerStatusResponse, summary="获取调度器状态")
+@router.get("/status", summary="获取调度器状态")
 async def get_scheduler_status():
     """
     获取调度器运行状态
 
     Returns:
-        SchedulerStatusResponse: 调度器状态信息
+        Dict with code, message, and data containing SchedulerStatusResponse
 
     Raises:
         HTTPException: 500 if status retrieval fails
@@ -117,10 +118,12 @@ async def get_scheduler_status():
     try:
         status = GlobalScheduler.get_scheduler_status()
 
-        return SchedulerStatusResponse(
+        status_data = SchedulerStatusResponse(
             running=status['running'],
             job_count=status['job_count']
         )
+        return success_response(data=status_data, message="Scheduler status retrieved")
+
     except Exception as e:
         print_error(f"Failed to get scheduler status: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve scheduler status: {str(e)}")
