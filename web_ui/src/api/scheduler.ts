@@ -6,7 +6,7 @@ import type { SchedulerJob, SchedulerStatus } from '../types/scheduler'
  * @returns Promise resolving to array of scheduler jobs
  */
 export const fetchSchedulerJobs = async (): Promise<SchedulerJob[]> => {
-  const response = await http.get<SchedulerJob[]>('/scheduler/jobs')
+  const response = await http.get<SchedulerJob[]>('/wx/scheduler/jobs')
   return response || []
 }
 
@@ -15,6 +15,6 @@ export const fetchSchedulerJobs = async (): Promise<SchedulerJob[]> => {
  * @returns Promise resolving to scheduler status
  */
 export const fetchSchedulerStatus = async (): Promise<SchedulerStatus> => {
-  const response = await http.get<SchedulerStatus>('/scheduler/status')
+  const response = await http.get<SchedulerStatus>('/wx/scheduler/status')
   return response
 }

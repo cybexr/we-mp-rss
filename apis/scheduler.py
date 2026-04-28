@@ -45,12 +45,20 @@ class SchedulerStatusResponse(BaseModel):
     """Scheduler status response model"""
     running: bool = Field(..., description="Whether the scheduler is running")
     job_count: int = Field(..., description="Total number of scheduled jobs")
+    thread_alive: bool = Field(..., description="Whether the scheduler event loop thread is alive")
+    event_loop_running: bool = Field(..., description="Whether the event loop is running")
+    monitor_alive: bool = Field(..., description="Whether the health monitor thread is alive")
+    healthy: bool = Field(..., description="Overall scheduler health status")
 
     class Config:
         schema_extra = {
             "example": {
                 "running": True,
-                "job_count": 5
+                "job_count": 5,
+                "thread_alive": True,
+                "event_loop_running": True,
+                "monitor_alive": True,
+                "healthy": True
             }
         }
 
@@ -120,7 +128,11 @@ async def get_scheduler_status():
 
         status_data = SchedulerStatusResponse(
             running=status['running'],
-            job_count=status['job_count']
+            job_count=status['job_count'],
+            thread_alive=status['thread_alive'],
+            event_loop_running=status['event_loop_running'],
+            monitor_alive=status['monitor_alive'],
+            healthy=status['healthy']
         )
         return success_response(data=status_data, message="Scheduler status retrieved")
 
